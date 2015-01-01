@@ -1,0 +1,28 @@
+{
+    "name": "drupalista-br/nx_wsclient",
+    "description": "Consumidor de serviços disponibilizados pelo REST Webservice da NortaoX.com",
+    "homepage": "http://github.com/drupalista-br/nx_wsclient",
+    "license": "MIT",
+    "keywords": ["nortaox"],
+    "version": "0.1",
+    "authors": [
+        {
+            "name": "Francisco Luz",
+            "email": "franciscoferreiraluz@yahoo.com.au",
+            "homepage": "http://nortaox.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.3",
+        "ext-curl": "*",
+        "nategood/httpful": "*"
+    },
+    "autoload": {
+        "psr-0": {
+            "NXWSClient": "src/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "*"
+    }
+}
