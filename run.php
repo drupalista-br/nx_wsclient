@@ -5,5 +5,5 @@ require_once "vendor/autoload.php";
 
 $test = new nx();
 
-print_r($test->login());
+print_r($test->create());
 

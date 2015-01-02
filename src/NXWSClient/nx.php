@@ -3,8 +3,11 @@ namespace NXWSClient;
 use \Httpful\Request;
 
 class nx {
-  public $config;
-  public $endpoint;
+  public $session,
+		 $config,
+		 $endpoint,
+		 $root_folder,
+		 $folders;
 
   /**
    * @param String $environment
@@ -15,13 +18,13 @@ class nx {
    */
   public function __construct($environment = 'producao', $check_endpoint = FALSE) {
 	$root_folder = pathinfo(__DIR__);
-	$root_folder = dirname($root_folder['dirname']);
+	$root_folder = $this->root_folder = dirname($root_folder['dirname']);
 
 	$config_file = $root_folder . DIRECTORY_SEPARATOR . "config.ini";
 	if (!file_exists($config_file)) {
 	  exit("O arquivo $config_file nao existe\n");
 	}
-	
+
 	$this->config = $config = parse_ini_file($config_file, true);
 	$this->endpoint = $uri = $config['endpoints'][$environment];
 
@@ -39,24 +42,86 @@ class nx {
 	  }
 	  exit("Endpoint $uri esta acessivel.\n");
 	}
+
+	$this->set_folder_locations();
+	$this->login();
   }
 
-  function login() {
+  private function set_folder_locations() {
+	foreach($this->config['pastas'] as $folder_user => $folder_path) {
+	  $path = str_replace('%app%', $this->root_folder, $folder_path);
+	  $this->folders[$folder_user] = str_replace('/', DIRECTORY_SEPARATOR, $path);
+	}
+  }
+
+  private function login() {
+	$session_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".session";
+	$token_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".token";
+
+	if (file_exists($session_file)) {
+	  $this->session = file_get_contents($session_file);
+	  $this->token = file_get_contents($token_file);
+	}
+	else {
+	  // Request user authentication.
+	  $endpoint = $this->endpoint;
+	  $service = $this->config['servicos']['login'];
+	  $username = $this->config['credenciais']['username'];
+	  $password = $this->config['credenciais']['password'];
+
+	  $uri = "$endpoint/$service";
+
+	  $request = Request::post($uri)
+		->body("username=$username&password=$password")
+		->expectsJson()
+		->send();
+
+	  $sessid = $request->body->sessid;
+	  $session_name = $request->body->session_name;
+
+	  $this->session = "$session_name=$sessid";
+	  $this->token = $request->body->token;
+	  file_put_contents($session_file, $this->session);
+	  file_put_contents($token_file, $this->token);
+	}
+  }
+
+  private function request($service, $body, $method) {
 	$endpoint = $this->endpoint;
-	$login_service = $this->config['servicos']['login'];
-	$username = $this->config['credenciais']['username'];
-	$password = $this->config['credenciais']['password'];
+	$service = $this->config['servicos'][$service];
 
-	$uri = "$endpoint/$login_service";
+	$uri = "$endpoint/$service";
 
-	$request = Request::post($uri)
-	  ->body("username=$username&password=$password")
-	  ->expectsJson()
+	$request = Request::$method($uri)
+	  ->sendsJson()
+	  ->addHeader('Cookie', $this->session)
+	  ->addHeader('X-CSRF-Token', $this->token)
+	  ->body($body)
 	  ->send();
-	print_r($request);
+	print_r($request->body);
+  }
 
-	session
+  public function create($service = 'produto') {
+	$body = array(
+	  'nome' => 'my new product 2',
+	  'preco' => '5068',
+	  'preco_velho' => '5068',
+	  'qtde_em_estoque' => '99885.00',
+	  'cod_cidade' => 35,
+	  // Opcional.
+	  'localizacao_fisica' => 'prateleira',
+	  // Opcional.
+	  'cod_produto_erp' => '123',
+	);
 
-	//echo "{$request->body->name} joined GitHub on " . date('M jS', strtotime($request->body->{'created-at'})) ."\n";
+	$this->request($service, $body, 'post');
+  }
+
+  public function update() {
+
+  }
+
+  public function retrieve() {
+
   }
 }
