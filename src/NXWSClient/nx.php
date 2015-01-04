@@ -57,11 +57,13 @@ class nx {
 	$this->login();
   }
 
-  private function response_code($response, $uri) {
+  private function response_code($response, $uri, $quiet = FALSE) {
 	$code = $response->code;
 
 	if ($code == 200) {
-	  print "SUCESSO!!!" . PHP_EOL;
+	  if (!$quiet) {
+		print "SUCESSO!!!" . PHP_EOL;
+	  }
 	}
 	else {
 	  $body = $response->raw_body;
@@ -99,7 +101,7 @@ class nx {
 	$session_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".session";
 	$token_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".token";
 
-	if (file_exists($session_file)) {
+	if (file_exists($session_file) && file_exists($token_file)) {
 	  $this->session = file_get_contents($session_file);
 	  $this->token = file_get_contents($token_file);
 	}
@@ -132,11 +134,30 @@ class nx {
 	}
   }
 
-  private function request($service, $body, $method) {
+  /**
+   * @param String $service
+   *   The service path.
+   *
+   * @param Array $body
+   *   PHP Array of items containing the data to be later converted into Json.
+   *
+   * @param String $method
+   *   Valid values are: get, post and put.
+   *
+   * @param String $query
+   *   URL Item + Query String value. Format /item_value.json?param1=value1&param2=value2
+   *
+   * @param Bool $return_raw_data
+   *  Whether or not to return the response as a PHP object or a Json string.
+   *
+   * @return String
+   *   The Webservice response.
+   */
+  private function request($service, $body, $method, $query = '', $return_raw_data = FALSE) {
 	$endpoint = $this->endpoint;
 	$service = $this->config['servicos'][$service];
 
-	$uri = "$endpoint/$service";
+	$uri = "$endpoint/$service" . $query;
 
 	$request = Request::$method($uri)
 	  ->sendsJson()
@@ -145,31 +166,52 @@ class nx {
 	  ->body($body)
 	  ->send();
 
-	$this->response_code($request, $uri);
+	$quiet = FALSE;
+	if ($method == 'get') {
+	  // Don't return anything if request is succesful.
+	  $quiet = TRUE;
+	}
+	$this->response_code($request, $uri, $quiet);
+
+	if ($return_raw_data) {
+	  return $request->raw_body . PHP_EOL;
+	}
+
 	return $request->body;
   }
 
   public function create($service = 'produto') {
 	$body = array(
-	  'nome' => 'my new product 5',
+	  'nome' => 'my new product 15',
 	  'preco' => 5068,
 	  'preco_velho' => 7068,
-	  'qtde_em_estoque' => 99885.00,
-	  'cod_cidade' => 35,
+	  'qtde_em_estoque' => 88885.01,
+	  'cod_cidade' => 135,
 	  // Opcional.
 	  'localizacao_fisica' => 'prateleira',
 	  // Opcional.
-	  'cod_produto_erp' => '123',
+	  'cod_produto_erp' => '125',
 	);
 
-	$response = $this->request($service, $body, 'post');
+	return $this->request($service, $body, 'post');
   }
 
-  public function update() {
+  public function update($service = 'produto') {
 
   }
 
-  public function retrieve() {
+  public function retrieve($item, $qs = array(), $service = 'produto') {
+	$query_string = '';
+	foreach ($qs as $param => $argument) {
+	  $query_string .= "$param=$argument&";
+	}
 
+	if (!empty($query_string)) {
+	  $query_string = "?$query_string";
+	}
+
+	$query = "/$item.json" . $query_string;
+
+	return $this->request($service, '', 'get', $query, true);
   }
 }

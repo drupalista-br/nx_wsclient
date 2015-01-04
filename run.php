@@ -5,5 +5,7 @@ require_once "vendor/autoload.php";
 
 $test = new nx();
 
-print_r($test->create());
+$qs = array('campo' => 'sku');
+
+print_r( $test->retrieve('55') );
 
