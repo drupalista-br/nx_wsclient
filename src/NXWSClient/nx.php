@@ -57,6 +57,20 @@ class nx {
 	$this->login();
   }
 
+  /**
+   * Prints out an error message plus service response when the service
+   * request fails.
+   *
+   * @param Object $response
+   *   The full object response from the webservice.
+   *
+   * @param String $uri
+   *   The service URI which the service has been requested against.
+   *
+   * @param Bool $quiet
+   *   Whether or not this method should print out a success message when
+   *   the response is successful.
+   */
   private function response_code($response, $uri, $quiet = FALSE) {
 	$code = $response->code;
 
@@ -87,6 +101,9 @@ class nx {
 	}
   }
 
+  /**
+   * Loads folder paths from config.ini.
+   */
   private function set_folder_locations() {
 	foreach($this->config['pastas'] as $folder => $folder_path) {
 	  // Make sure the correct OS directory separator is gonna be in place.
@@ -97,6 +114,9 @@ class nx {
 	}
   }
 
+  /**
+   * Logs in the merchant user.
+   */
   private function login() {
 	$session_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".session";
 	$token_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".token";
@@ -135,6 +155,8 @@ class nx {
   }
 
   /**
+   * Performs the POST, PUT and GET requests.
+   *
    * @param String $service
    *   The service path.
    *
@@ -158,9 +180,10 @@ class nx {
 	$service = $this->config['servicos'][$service];
 
 	$uri = "$endpoint/$service" . $query;
-
+  
 	$request = Request::$method($uri)
 	  ->sendsJson()
+	  ->expectsJson()
 	  ->addHeader('Cookie', $this->session)
 	  ->addHeader('X-CSRF-Token', $this->token)
 	  ->body($body)
@@ -168,7 +191,7 @@ class nx {
 
 	$quiet = FALSE;
 	if ($method == 'get') {
-	  // Don't return anything if request is succesful.
+	  // Return nothing when request status code is succesful.
 	  $quiet = TRUE;
 	}
 	$this->response_code($request, $uri, $quiet);
@@ -180,6 +203,12 @@ class nx {
 	return $request->body;
   }
 
+  /**
+   * Creates a new service item.
+   *
+   * @param String $service
+   *  The service path.
+   */
   public function create($service = 'produto') {
 	$body = array(
 	  'nome' => 'my new product 15',
@@ -200,7 +229,19 @@ class nx {
 
   }
 
-  public function retrieve($item, $qs = array(), $service = 'produto') {
+  /**
+   * Retrieves a single item from a service.
+   *
+   * @param String $item
+   *   The item id which is gonna be retrieved from the service.
+   *
+   * @param Array $qs
+   *   Key = Paramenter name, Value = Argument value.
+   *
+   * @param String $service
+   *   The service path.
+   */
+  private function retrieve_service_item($item, $qs = array(), $service = 'produto') {
 	$query_string = '';
 	foreach ($qs as $param => $argument) {
 	  $query_string .= "$param=$argument&";
@@ -213,5 +254,60 @@ class nx {
 	$query = "/$item.json" . $query_string;
 
 	return $this->request($service, '', 'get', $query, true);
+  }
+
+  /**
+   * Retrieves a single product based on its product_id field.
+   *
+   * @param String $product_id
+   *   The Product ID value set at the NortaoX application.
+   *
+   * @return Json
+   *   The product object in Json format.
+   */
+  public function get_product_by_product_id($product_id) {
+	return $this->retrieve_service_item($product_id);
+  }
+
+  /**
+   * Retrieves a single product based on its sku field.
+   *
+   * @param String $sku
+   *   The SKU value set at the NortaoX application.
+   *
+   * @return Json
+   *   The product object in Json format.
+   */
+  public function get_product_by_sku($sku) {
+	$qs = array('campo' => 'sku');
+	return $this->retrieve_service_item($sku, $qs);
+  }
+
+  /**
+   * Retrieves a single product based on its cod_produto_erp field.
+   *
+   * @param String $erp_prod_id
+   *   The product id value set at the ERP application.
+   *
+   * @return Json
+   *   The product object in Json format.
+   */
+  public function get_product_by_erp_prod_id($erp_prod_id) {
+	$qs = array('campo' => 'cod_produto_erp');
+	return $this->retrieve_service_item($erp_prod_id, $qs);
+  }
+
+  /**
+   * Retrieves a list of cities which NortaoX is or will trade.
+   *
+   * @param String $erp_prod_id
+   *   The product id value set at the ERP application.
+   *
+   * @return Json
+   *   The product object in Json format containg the following values:
+   *   cod_cidade, nome and status.
+   */
+  public function get_cities() {
+	return $this->request('cidades', '', 'get', '', true);
   }
 }
