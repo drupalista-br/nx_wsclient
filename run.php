@@ -7,5 +7,5 @@ $test = new nx();
 
 $qs = array('campo' => 'sku');
 
-print_r( $test->get_product_by_sku('87-35-63') );
+print_r( $test->update() );
 

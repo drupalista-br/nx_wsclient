@@ -175,12 +175,12 @@ class nx {
    * @return String
    *   The Webservice response.
    */
-  private function request($service, $body, $method, $query = '', $return_raw_data = FALSE) {
+  private function request($service, $body, $method, $query = '', $return_raw_data = FALSE, $quiet = TRUE) {
 	$endpoint = $this->endpoint;
 	$service = $this->config['servicos'][$service];
 
 	$uri = "$endpoint/$service" . $query;
-  
+
 	$request = Request::$method($uri)
 	  ->sendsJson()
 	  ->expectsJson()
@@ -189,9 +189,9 @@ class nx {
 	  ->body($body)
 	  ->send();
 
-	$quiet = FALSE;
 	if ($method == 'get') {
-	  // Return nothing when request status code is succesful.
+	  // Return nothing when request status code is succesful even
+	  // when $quiet is set to FALSE.
 	  $quiet = TRUE;
 	}
 	$this->response_code($request, $uri, $quiet);
@@ -211,22 +211,37 @@ class nx {
    */
   public function create($service = 'produto') {
 	$body = array(
-	  'nome' => 'my new product 15',
+	  'nome' => 'my new product 18',
 	  'preco' => 5068,
 	  'preco_velho' => 7068,
 	  'qtde_em_estoque' => 88885.01,
-	  'cod_cidade' => 135,
+	  'cod_cidade' => 35,
 	  // Opcional.
-	  'localizacao_fisica' => 'prateleira',
+	  //'localizacao_fisica' => 'prateleira',
 	  // Opcional.
-	  'cod_produto_erp' => '125',
+	  //'cod_produto_erp' => '998',
 	);
 
-	return $this->request($service, $body, 'post');
+	return $this->request($service, $body, 'post', TRUE);
   }
 
   public function update($service = 'produto') {
+	$body = array(
+	  //'nome' => 'update test 55',
+	  //'product_id' => 64,
+	  'sku' => '87-35-55',
+	  //'preco' => 1583,
+	  //'preco_velho' => 7068,
+	  //'qtde_em_estoque' => 4255,
+	  //'cod_cidade' => 35,
+	  // Opcional.
+	  //'localizacao_fisica' => 'prateleira',
+	  // Opcional.
+	  //'cod_produto_erp' => '1111',
+	  'status' => 0,
+	);
 
+	return $this->request($service, $body, 'put', '/atualizar', TRUE);
   }
 
   /**
@@ -292,9 +307,9 @@ class nx {
    * @return Json
    *   The product object in Json format.
    */
-  public function get_product_by_erp_prod_id($erp_prod_id) {
+  public function get_product_by_erp_prod_id($cod_produto_erp) {
 	$qs = array('campo' => 'cod_produto_erp');
-	return $this->retrieve_service_item($erp_prod_id, $qs);
+	return $this->retrieve_service_item($cod_produto_erp, $qs);
   }
 
   /**
@@ -304,7 +319,7 @@ class nx {
    *   The product id value set at the ERP application.
    *
    * @return Json
-   *   The product object in Json format containg the following values:
+   *   The product object in Json format containg the following values for:
    *   cod_cidade, nome and status.
    */
   public function get_cities() {
