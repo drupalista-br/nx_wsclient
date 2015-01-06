@@ -3,15 +3,15 @@ namespace NXWSClient;
 use \Httpful\Request;
 
 class nx {
-  public $session,
-		 $config,
-		 $endpoint,
-		 $root_folder,
-		 $folders,
-		 $log_file,
-		 $merchant_uid,
-		 $response_body_object,
-		 $response_body_json;
+  private $session,
+		  $config,
+		  $endpoint,
+		  $root_folder,
+		  $folders,
+		  $log_file,
+		  $merchant_uid,
+		  $response_body_object,
+		  $response_body_json;
 
   /**
    * @param String $environment
