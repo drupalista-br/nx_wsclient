@@ -20,7 +20,7 @@ class nx {
    * @param Bool $check_endpoint
    *   Checks if endpoint is alive.
    */
-  public function __construct($check_endpoint = FALSE, $is_dev = FALSE) {
+  public function __construct($is_dev = FALSE) {
 	$root_folder = pathinfo(__DIR__);
 	$root_folder = $this->root_folder = dirname($root_folder['dirname']);
 
@@ -32,7 +32,7 @@ class nx {
 	$this->config = $config = parse_ini_file($config_file, TRUE);
 	$environment = ($is_dev) ? 'dev' : $config['ambiente'];
 
-	$this->endpoint = $uri = $config['endpoint'][$environment];
+	$this->endpoint = $config['endpoint'][$environment];
 	$this->set_folder_locations();
 
 	$current_date = date("Y-m-d");
@@ -50,15 +50,20 @@ class nx {
 	  exit();
 	}
 
-	if ($check_endpoint) {
-	  $request = Request::get($uri)
-		->send();
-
-	  $this->response_code($request, $uri, TRUE);
-	  exit("Endpoint $uri esta acessivel." . PHP_EOL);
-	}
-
 	$this->login();
+  }
+  
+  /**
+   * Sends a test request to the endpoint.
+   */
+  public function check_endpoint() {
+	$uri = $this->endpoint;
+
+	$request = Request::get($uri)
+	  ->send();
+
+	$this->response_code($request, $uri, TRUE);
+	print "Endpoint $uri esta acessivel." . PHP_EOL;
   }
 
   /**
