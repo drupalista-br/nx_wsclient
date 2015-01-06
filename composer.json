@@ -5,6 +5,12 @@
     "license": "MIT",
     "keywords": ["nortaox"],
     "version": "0.1",
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://packages.zendframework.com/"
+        }
+    ],
     "authors": [
         {
             "name": "Francisco Luz",
@@ -15,7 +21,8 @@
     "require": {
         "php": ">=5.3",
         "ext-curl": "*",
-        "nategood/httpful": "*"
+        "nategood/httpful": "*",
+        "zendframework/zend-config": "2.3.*"
     },
     "autoload": {
         "psr-0": {
