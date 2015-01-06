@@ -9,7 +9,9 @@ class nx {
 		 $root_folder,
 		 $folders,
 		 $log_file,
-		 $merchant_uid;
+		 $merchant_uid,
+		 $response_body_object,
+		 $response_body_json;
 
   /**
    * @param String $environment
@@ -18,7 +20,7 @@ class nx {
    * @param Bool $check_endpoint
    *   Checks if endpoint is alive.
    */
-  public function __construct($environment = 'producao', $check_endpoint = FALSE) {
+  public function __construct($check_endpoint = FALSE, $is_dev = FALSE) {
 	$root_folder = pathinfo(__DIR__);
 	$root_folder = $this->root_folder = dirname($root_folder['dirname']);
 
@@ -28,18 +30,20 @@ class nx {
 	}
 
 	$this->config = $config = parse_ini_file($config_file, TRUE);
-	$this->endpoint = $uri = $config['endpoints'][$environment];
+	$environment = ($is_dev) ? 'dev' : $config['ambiente'];
+
+	$this->endpoint = $uri = $config['endpoint'][$environment];
 	$this->set_folder_locations();
 
 	$current_date = date("Y-m-d");
 	$this->log_file = $log_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . "logs" . DIRECTORY_SEPARATOR . "$current_date.log";
 
-	if (!isset($config['endpoints'][$environment])) {
+	if (!isset($config['endpoint'][$environment])) {
 	  $time = date('G:i:s');
 	  $log = "----$time----" . PHP_EOL;
 
 	  $eol = PHP_EOL;
-	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoints] $eol $environment = URI$eol";
+	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
 	  $log .= $print;
 
 	  file_put_contents($log_file, $log, FILE_APPEND);
@@ -50,7 +54,7 @@ class nx {
 	  $request = Request::get($uri)
 		->send();
 
-	  $this->response_code($request, $uri);
+	  $this->response_code($request, $uri, TRUE);
 	  exit("Endpoint $uri esta acessivel." . PHP_EOL);
 	}
 
@@ -67,15 +71,15 @@ class nx {
    * @param String $uri
    *   The service URI which the service has been requested against.
    *
-   * @param Bool $quiet
+   * @param Bool $print_success_msg
    *   Whether or not this method should print out a success message when
    *   the response is successful.
    */
-  private function response_code($response, $uri, $quiet = FALSE) {
+  private function response_code($response, $uri, $print_success_msg = FALSE) {
 	$code = $response->code;
 
 	if ($code == 200) {
-	  if (!$quiet) {
+	  if ($print_success_msg) {
 		print "SUCESSO!!!" . PHP_EOL;
 	  }
 	}
@@ -175,7 +179,7 @@ class nx {
    * @return String
    *   The Webservice response.
    */
-  private function request($service, $body, $method, $query = '', $return_raw_data = FALSE, $quiet = TRUE) {
+  private function request($service, $body, $method, $query = '', $return_raw_data = FALSE, $print_success_msg = FALSE) {
 	$endpoint = $this->endpoint;
 	$service = $this->config['servicos'][$service];
 
@@ -189,12 +193,10 @@ class nx {
 	  ->body($body)
 	  ->send();
 
-	if ($method == 'get') {
-	  // Return nothing when request status code is succesful even
-	  // when $quiet is set to FALSE.
-	  $quiet = TRUE;
-	}
-	$this->response_code($request, $uri, $quiet);
+	$this->response_code($request, $uri, $print_success_msg);
+
+	$this->response_body_object = $request->body;
+	$this->response_body_json = $request->raw_body;
 
 	if ($return_raw_data) {
 	  return $request->raw_body . PHP_EOL;
@@ -211,20 +213,26 @@ class nx {
    */
   public function create($service = 'produto') {
 	$body = array(
-	  'nome' => 'my new product 18',
+	  //'nome' => 'my new product 200',
 	  'preco' => 5068,
 	  'preco_velho' => 7068,
 	  'qtde_em_estoque' => 88885.01,
 	  'cod_cidade' => 35,
 	  // Opcional.
-	  //'localizacao_fisica' => 'prateleira',
+	  'localizacao_fisica' => 'prateleira',
 	  // Opcional.
-	  //'cod_produto_erp' => '998',
+	  'cod_produto_erp' => '998',
 	);
 
-	return $this->request($service, $body, 'post', TRUE);
+	return $this->request($service, $body, 'post');
   }
 
+  /**
+   * Updates service item.
+   *
+   * @param String $service
+   *  The service path.
+   */
   public function update($service = 'produto') {
 	$body = array(
 	  //'nome' => 'update test 55',
@@ -241,7 +249,7 @@ class nx {
 	  'status' => 0,
 	);
 
-	return $this->request($service, $body, 'put', '/atualizar', TRUE);
+	return $this->request($service, $body, 'put', '/atualizar');
   }
 
   /**
@@ -268,7 +276,7 @@ class nx {
 
 	$query = "/$item.json" . $query_string;
 
-	return $this->request($service, '', 'get', $query, true);
+	return $this->request($service, '', 'get', $query);
   }
 
   /**
@@ -307,7 +315,7 @@ class nx {
    * @return Json
    *   The product object in Json format.
    */
-  public function get_product_by_erp_prod_id($cod_produto_erp) {
+  public function get_product_by_cod_produto_erp($cod_produto_erp) {
 	$qs = array('campo' => 'cod_produto_erp');
 	return $this->retrieve_service_item($cod_produto_erp, $qs);
   }
@@ -323,6 +331,6 @@ class nx {
    *   cod_cidade, nome and status.
    */
   public function get_cities() {
-	return $this->request('cidades', '', 'get', '', true);
+	return $this->request('cidades', '', 'get');
   }
 }
