@@ -24,36 +24,16 @@ class argv {
 	),
 	'consultar' => array(
 	  'produto' => array(
-		'product_id' => 'Exemplo: php run.php consultar produto product_id VALOR_DO_PRODUCT_ID DESTINO FORMATO_DE_DADOS',
-		'sku' => 'Exemplo: php run.php consultar produto sku VALOR_DO_SKU DESTINO FORMATO_DE_DADOS',
-		'cod_produto_erp' => 'Exemplo: php run.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP DESTINO FORMATO_DE_DADOS',
+		'product_id' => 'Exemplo: php run.php consultar produto product_id VALOR_DO_PRODUCT_ID',
+		'sku' => 'Exemplo: php run.php consultar produto sku VALOR_DO_SKU',
+		'cod_produto_erp' => 'Exemplo: php run.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP',
 	  ),
 	  'pedido' => array(
-		'no' => 'Exemplo: php run.php consultar pedido no NUMERO_DO_PEDIDO DESTINO FORMATO_DE_DADOS',
-		'entre' => 'Exemplo: php run.php consultar pedido entre TIMESTAMP_INICIO TIMESTAMP_FIM DESTINO FORMATO_DE_DADOS',
+		'no' => 'Exemplo: php run.php consultar pedido no NUMERO_DO_PEDIDO',
 	  ),
-	  'cidades' => 'Exemplo: php run.php consultar cidades DESTINO',
+	  'cidades' => 'Exemplo: php run.php consultar cidades',
 	),
 	'testar' => 'Exemplo: php run.php testar | Verifica se o Webservice está acessível.',
-	// Aliases.
-	'a' => array(
-	  // Create/Update products.
-	  'p' => 'Exemplo: php run.php a p | Executará: php run.php scaniar produto',
-
-	  // Retrieve a product by product_id.
-	  'cpit' => 'Exemplo: php run.php a cpit VALOR_DO_PRODUCT_ID | Executará: php run.php consultar produto product_id VALOR_DO_PRODUCT_ID tela',
-	  'cpiat' => 'Exemplo: php run.php a cpiat VALOR_DO_PRODUCT_ID | Executará: php run.php consultar produto product_id VALOR_DO_PRODUCT_ID arquivo txt',
-	  'cpiaj' => 'Exemplo: php run.php a cpiaj VALOR_DO_PRODUCT_ID | Executará: php run.php consultar produto product_id VALOR_DO_PRODUCT_ID arquivo json',
-	  // Retrieve a product by SKU.
-	  'cpst' => 'Exemplo: php run.php a cpst VALOR_DO_SKU | Executará: php run.php consultar produto sku VALOR_DO_SKU tela',
-	  'cpsat' => 'Exemplo: php run.php a cpsat VALOR_DO_SKU | Executará: php run.php consultar produto sku VALOR_DO_SKU arquivo txt',
-	  'cpsaj' => 'Exemplo: php run.php a cpsaj VALOR_DO_SKU | Executará: php run.php consultar produto sku VALOR_DO_SKU arquivo json',
-	  // Retrieve a product by cod_produto_erp.
-	  'cpct' => 'Exemplo: php run.php a cpst VALOR_DO_COD_PRODUTO_ERP | Executará: php run.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP tela',
-	  'cpcat' => 'Exemplo: php run.php a cpsat VALOR_DO_COD_PRODUTO_ERP | Executará: php run.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP arquivo txt',
-	  'cpcaj' => 'Exemplo: php run.php a cpsaj VALOR_DO_COD_PRODUTO_ERP | Executará: php run.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP arquivo json',
-
-	),
   ),
   $is_dev,
   // nx object.
@@ -71,13 +51,6 @@ class argv {
   // Number of parameters sent after the command instructions.
   $command_params_qty_sent;
   
-  // Output content formats.
-  const JSON = 'json';
-  const TXT = 'txt';
-  // Output destinations.
-  const ONSCREEN = 'tela';
-  const FILE = 'arquivo';
-
   public function __construct($is_dev = FALSE) {
 	$command_type = 'nx';
 	$command_string = '';
@@ -97,7 +70,6 @@ class argv {
 			  case 'help':
 			  case 'config':
 			  case 'consultar':
-			  case 'a':
 				$command_type = $argument_value;
 			  break;
 			}
@@ -145,10 +117,6 @@ class argv {
 	$command_array = $this->command_array;
 
 	switch($command_type) {
-	  case 'a':
-		// Aliases.
-		$this->run_a();
-	  break;
 	  case 'help':
 		$this->run_help();
 	  break;
@@ -161,15 +129,6 @@ class argv {
 		$this->run_nx();
 	  break;
 	}
-  }
-
-  /**
-   * Converts command aliases into full command instructions.
-   */
-  private function run_a() {
-	$this->run_help();
-	$this->run_config();
-	$this->run_nx();
   }
 
   /**
@@ -238,40 +197,36 @@ class argv {
    * Creates, Updates and Retrieves service's items.
    */
   private function run_nx() {
+	$result = FALSE;
 	switch($this->command_string) {
 	  case 'scaniar produto':
 		$this->check_command_params(0);
-
+		$result = $this->nx->scan_dados_folder();
 	  break;
 	  case 'consultar produto product_id':
-		$this->check_command_params(1);
-
-	  break;
 	  case 'consultar produto sku':
-		$this->check_command_params(1);
-
-	  break;
 	  case 'consultar produto cod_produto_erp':
-		$this->check_command_params(1);
+		$this->check_command_params();
+		$field_name = explode('consultar produto ', $this->command_string);
+		$method_name = "get_product_by_$field_name";
 
+		$result = $this->nx->{$method_name}($this->command_params[0]);
 	  break;
 	  case 'consultar pedido no':
-		$this->check_command_params(1);
-
-	  break;
-	  case 'consultar pedido entre':
-		$this->check_command_params(2);
-
+		$this->check_command_params();
+		$result = $this->nx->get_order_by_number($this->command_params[0]);
 	  break;
 	  case 'consultar cidades':
-		$location = $this->check_command_params(0);
-		$content = $this->nx->get_cities();
-		$this->output($content, $location);
+		$this->check_command_params(0);
+		$result = $this->nx->get_cities();
 	  break;
 	  case 'testar':
 		$this->check_command_params(0);
 		$this->nx->check_endpoint();
 	  break;
+	}
+	if ($result) {
+	  $this->output($result);
 	}
   }
 
@@ -291,14 +246,11 @@ class argv {
   /**
    * Outputs the content resulted from a service retrieve.
    *
-   * @param String $content
-   *   The service retrieve result.
+   * @param String $result
+   *   The service's response result.
    *
-   * @param String $location
-   *   Possible values are either 'tela' for printing out the content onscreen
-   *   or 'arquivo' for saving the content into .../dados/consulta/filename.ext
    */
-  private function output($content, $location, $format = self::TXT) {
+  private function output($result) {
 
   }
 }

@@ -258,10 +258,18 @@ class nx {
   }
 
   /**
+   * Checks dados' subfolder for new files. It then reads them, calls either
+   * create or update method.
+   * If create or update returns TRUE ( success ) it deletes the data file,
+   * otherwise moves it to tmp/falhas/<given-subfolder>.
+   * 
+   */
+  public function scan_dados_folder($folder = 'produto') {
+	
+  }
+
+  /**
    * Retrieves a single item from a service.
-   *
-   * @param String $item
-   *   The item id which is gonna be retrieved from the service.
    *
    * @param Array $qs
    *   Key = Paramenter name, Value = Argument value.
@@ -269,7 +277,7 @@ class nx {
    * @param String $service
    *   The service path.
    */
-  private function retrieve_service_item($item, $qs = array(), $service = 'produto') {
+  private function retrieve_service_item($qs = array(), $service = 'produto') {
 	$query_string = '';
 	foreach ($qs as $param => $argument) {
 	  $query_string .= "$param=$argument&";
@@ -279,9 +287,23 @@ class nx {
 	  $query_string = "?$query_string";
 	}
 
-	$query = "/$item.json" . $query_string;
+	$query = "/consultar.json" . $query_string;
 
 	return $this->request($service, '', 'get', $query);
+  }
+
+  /**
+   * Retrieves a single order based on its number.
+   *
+   * @param String $order_number
+   *   The order identification number.
+   *
+   * @return Json
+   *   The order object in Json format.
+   */
+  public function get_order_by_number($order_number) {
+	$qs = array('no' => $order_number);
+	return $this->retrieve_service_item($qs);
   }
 
   /**
@@ -294,7 +316,8 @@ class nx {
    *   The product object in Json format.
    */
   public function get_product_by_product_id($product_id) {
-	return $this->retrieve_service_item($product_id);
+	$qs = array('product_id' => $product_id);
+	return $this->retrieve_service_item($qs);
   }
 
   /**
@@ -307,33 +330,30 @@ class nx {
    *   The product object in Json format.
    */
   public function get_product_by_sku($sku) {
-	$qs = array('campo' => 'sku');
-	return $this->retrieve_service_item($sku, $qs);
+	$qs = array('sku' => $sku);
+	return $this->retrieve_service_item($qs);
   }
 
   /**
    * Retrieves a single product based on its cod_produto_erp field.
    *
-   * @param String $erp_prod_id
+   * @param String $cod_produto_erp
    *   The product id value set at the ERP application.
    *
    * @return Json
    *   The product object in Json format.
    */
   public function get_product_by_cod_produto_erp($cod_produto_erp) {
-	$qs = array('campo' => 'cod_produto_erp');
-	return $this->retrieve_service_item($cod_produto_erp, $qs);
+	$qs = array('cod_produto_erp' => $cod_produto_erp);
+	return $this->retrieve_service_item($qs);
   }
 
   /**
    * Retrieves a list of cities which NortaoX is or will trade.
    *
-   * @param String $erp_prod_id
-   *   The product id value set at the ERP application.
-   *
    * @return Json
-   *   The product object in Json format containg the following values for:
-   *   cod_cidade, nome and status.
+   *   A Json object list of cities containg values of cod_cidade, nome and
+   *   status.
    */
   public function get_cities() {
 	return $this->request('cidades', '', 'get');
