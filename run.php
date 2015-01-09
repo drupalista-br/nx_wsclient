@@ -4,6 +4,13 @@ use \NXWSClient\argv;
 use \NXWSClient\nx;
 
 require_once "vendor/autoload.php";
+
+$array = parse_ini_file('/home/francisco/drupalista-br/nx_wsclient/dados/consulta/cidades.txt', TRUE);
+
+print current(array_keys($array));
+
+print "\n";
+exit();
 /*
 $item_data_folder = __DIR__;
 try {
@@ -33,5 +40,5 @@ $writer->toFile('test.ini', $config);*/
 
 $test = new nx(TRUE);
 
-print_r( $test->get_order_by_number('47-87') );
+print_r( $test->check() );
 

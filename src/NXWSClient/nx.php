@@ -18,11 +18,7 @@ class nx {
 		  $response_error_msg;
 
   /**
-   * @param String $environment
-   *   Expects either producao or sandbox. producao is default.
-   *
-   * @param Bool $check_endpoint
-   *   Checks if endpoint is alive.
+   * Initial construction.
    */
   public function __construct($is_dev = FALSE) {
 	$root_folder = pathinfo(__DIR__);
@@ -39,26 +35,47 @@ class nx {
 	$environment = ($is_dev) ? 'dev' : $config['ambiente'];
 
 	$this->endpoint = $config['endpoint'][$environment];
-	$this->set_folder_locations();
+	if ($config) {
+	  $this->set_folder_locations();
+  
+	  $current_date = date("Y-m-d");
+	  $this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
+  
+	  if (!isset($config['endpoint'][$environment])) {
+		$eol = PHP_EOL;
+		print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
+		$this->log($print);
+		exit();
+	  }
+  
+	  $this->login();
+	}
+	else {
+	  // Cant open config.ini.
+	  $this->response_code = 500;
+	  $this->response_error_msg = $print = "Nao foi possivel abrir o arquivo $config_file." . PHP_EOL;
+	  exit($print);
+	}
+  }
 
-	$current_date = date("Y-m-d");
-	$this->log_file = $log_file = $this->folders['tmp'] . "/logs/$current_date.log";
+  /**
+   * Logs failures.
+   *
+   * @param String $msg
+   *   Message to log.
+   */
+  private function log($msg) {
+	if (!empty($this->log_file)) {
+	  $log_file = $this->log_file;
 
-	if (!isset($config['endpoint'][$environment])) {
 	  $this->response_code = 500;
 	  $time = date('G:i:s');
 	  $log = "----$time----" . PHP_EOL;
+	  $log .= $msg;
 
-	  $eol = PHP_EOL;
-	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
-	  $this->response_error_msg = $print;
-	  $log .= $print;
-
+	  $this->response_error_msg = $msg;
 	  file_put_contents($log_file, $log, FILE_APPEND);
-	  exit();
 	}
-
-	$this->login();
   }
   
   /**
@@ -98,20 +115,15 @@ class nx {
 	$this->response_code = $code = $response->code;
 
 	if ($code != 200) {
-	  $this->response_error_msg = $body = $response->raw_body;
-	  $time = date('G:i:s');
-	  $log = "----$time----" . PHP_EOL;
-	  $log_file = $this->log_file;
+	  $body = $response->raw_body;
 
 	  print $print = "A chamada ao Endpoint $uri FALHOU. Retornou o Codigo de Status HTTP $code." . PHP_EOL;
-	  $log .= $print;
 	  if (!empty($body)) {
 		print $print = "O Webservice respondeu o seguinte:" . PHP_EOL;
-		$log .= $print;
 		print $print = $body . PHP_EOL;
-		$log .= $print;
 	  }
-	  file_put_contents($log_file, $log, FILE_APPEND);
+	  $this->log($print);
+
 	  return FALSE;
 	}
 	return TRUE;
@@ -138,22 +150,29 @@ class nx {
 		  "logs",
 		);
 
-		foreach(${$folder}  . "_subfolders" as $subfolder_name) {
+		foreach(${$folder . "_subfolders"} as $subfolder_name) {
 		  $full_subfolder_path = "$folder_path/$subfolder_name";
-		  $mkdir = mkdir($full_subfolder_path, 0777, TRUE);
+		  $mkdir = TRUE;
+		  if (!$full_subfolder_path) {
+			$mkdir = mkdir($full_subfolder_path, 0777, TRUE);
+		  }
 
-		  if (!$mkdir) {
+		  if (!$mkdir || !is_writable($full_subfolder_path)) {
 			$error_msgs[] = $full_subfolder_path;
 		  }
 		}
 	  }
 
 	  if ($error_msgs) {
-		print "Nao foi possivel criar as seguintes pastas:" . PHP_EOL;
+		print "Nao foi possivel criar ou nao eh possivel gravar arquivos dentro das seguintes pastas:" . PHP_EOL;
 		foreach ($error_msgs as $line_number => $msg) {
 		  print $line_number + 1 . ". $msg" . PHP_EOL;
 		}
 		exit("--Verifique as permissoes do usuario--" . PHP_EOL);
+	  }
+
+	  if ($check) {
+		exit("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL);
 	  }
 	}
   }
@@ -239,12 +258,8 @@ class nx {
   private function request($service, $body, $http_method, $service_method = '') {
 	$endpoint = $this->endpoint;
 	if (!isset($this->config['servicos'][$service])) {
-	  $time = date('G:i:s');
-	  $log = "----$time----" . PHP_EOL;
-	  $log_file = $this->log_file;
-
-	  print $log = "Nao existe o servico $service no config.ini" . PHP_EOL;
-	  file_put_contents($log_file, $log, FILE_APPEND);
+	  print $print = "Nao existe o servico $service no config.ini" . PHP_EOL;
+	  $this->log($print);
 
 	  return FALSE;
 	}
@@ -328,14 +343,31 @@ class nx {
   }
 
   /**
+   * Deletes a file. Logs message if it fails.
+   *
+   * @param String $file_full_path
+   *   The full file path.
+   */
+  private function delete_file($file_full_path) {
+	if (file_exists($file_full_path)) {
+	  if (!unlink($file_full_path)) {
+		print $print = "Nao foi possivel deletar o arquivo $file_full_path." . PHP_EOL;
+		$this->log($print);
+	  }
+	}
+  }
+
+  /**
    * Checks dados/$subfolder_name for new files. It then reads them, calls either
    * create or update method.
    * If create or update returns TRUE ( success ) it moves the data file to
-   * tmp/sucesso/$subfolder_name, otherwise moves data file o tmp/falhas/$subfolder_name.
+   * tmp/sucesso/$subfolder_name, otherwise adds an error tag into the file
+   * before moving it to tmp/falhas/$subfolder_name.
    *
    * @param String $subfolder_name
    *   The subfolder name where there will be one or more files contaning
-   *   items data for either creating or updating them to the NortaoX.com.
+   *   items data for either creating or updating them to the NortaoX.com
+   *   Webservice.
    *
    * @param String $prime_id_field_name
    *   The item id field name at the NortaoX.com.
@@ -355,6 +387,8 @@ class nx {
 	catch(Exception $e) {
 	  // @TODO: Handle exceptions.
 	}
+
+	$result = array();
 	foreach ($files as $file_object) {
 	  if ($file_object->isFile()) {
 		$file_name = $file_object->getFilename();
@@ -362,25 +396,176 @@ class nx {
 
 		if (filesize($file_full_path) === 0) {
 		  // File is empty. So, it goes straight into the fail's bin.
-		  $error_msg = "";
-		  $this->scan_dados_fail($file_name, $subfolder_name, $error_msg);
+		  $print = 'O arquivo tah vazio.' . PHP_EOL;
+
+		  $item_data = set_file_attempt_tag($item_data, $print);
+
+		  $this->scan_dados_fail($item_data, $subfolder_name, $file_name);
+		  print $print;
+
+		  $this->delete_file($file_full_path);
+
+		  // Move on to next file.
 		  break;
 		}
 
-		$item_data = parse_ini_file($file_full_path, TRUE);
+		$item_file_data = parse_ini_file($file_full_path, TRUE);
+		if ($item_file_data) {
+		  $first_key = current(array_keys($item_file_data));
+  
+		  if (is_array($item_file_data[$first_key])) {
+			// There are more than one item in the file.
+			foreach ($item_file_data as $item => $item_data) {
+			  $this->scan_dados_item_data($item_data, $subfolder_name, $prime_id_field_name, $secondary_id_field_names, $result);
+			}
+		  }
+		  else {
+			// There is only one item in the file.
+			$this->scan_dados_item_data($item_file_data, $subfolder_name, $prime_id_field_name, $secondary_id_field_names, $result);
+		  }
+		}
+		else {
+		  print $print = "Nao foi possivel carregar o arquivo $file_full_path." . PHP_EOL;
+		  $this->log($print);
 
+		  $tmp = $this->folders['tmp'];
+		  $move_to = "$tmp/falhas/$subfolder_name/$file_name";
+		  // Move file to fail's bin.
+		  if (!rename($file_full_path, $move_to)) {
+			print $print = "Nao foi possivel mover o arquivo $file_full_path para $move_to." . PHP_EOL;
+			$this->log($print);
+		  }
+		}
 
+		// We are done with this file. By now its content should either be,
+		// partially or entirely, at the fail or success bin.
+		$this->delete_file($file_full_path);
 	  }
+	}
+
+	if (!empty($result)) {
+	  // 
 	}
   }
 
-  private function scan_dados_fail() {
+  /**
+   * Processes a single item data and decides:
+   *  - Whether to call create or update methods.
+   *  - Whether the item data should ultimately be dumped into either fail or
+   *    success bin.
+   *
+   * @param Array $item_data
+   *   Holds the data of a single item.
+   *
+   * @param String $service
+   *   The service name.
+   *
+   * @param String $prime_id_field_name
+   *   See scan_dados_folder().
+   *
+   * @param Array $secondary_id_field_names
+   *   See scan_dados_folder().
+   *
+   */
+  private function scan_dados_item_data($item_data, $service, $prime_id_field_name, $secondary_id_field_names, &$result) {
+	$create = TRUE;
+	if (!isset($item_data[$prime_id_field_name])) {
+	  // Try to retrive the item from the webservice using the
+	  // $secondary_id_field_names.
+	  foreach($secondary_id_field_names as $secondary_field_name) {
+		if (isset($item_data[$secondary_field_name])) {
+		  $item_id = $item_data[$secondary_field_name];
+
+		  $method_name = "get_$service" . "_by_$secondary_field_name";
+		  if (method_exists($this, $method_name)) {
+			$item_exists = $this->{$method_name}($item_id, FALSE);
+
+			if ($item_exists) {
+			  $create = FALSE;
+
+			  // This item gotta be updated.
+			  $update_ok = $this->update($item_data, $service);
+
+			  if ($update_ok) {
+				$result['success'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+				return;
+			  }
+			  $result['fail'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+			}
+		  }
+		  else {
+			print $print = "O metodo $method_name NAO existe." . PHP_EOL;
+			$this->log($print);
+		  }
+		}
+	  }
+	}
+
+	if ($create) {
+	  $create_ok = $this->create($item_data, $service);
+	  if ($create_ok) {
+		$result['success'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+	  }
+
+	  $result['fail'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+	}
+  }
+
+  /**
+   * Adds a syncronization attempt tag into the item data array.
+   *
+   * @param Array $item_data
+   *   See scan_dados_item_data().
+   *
+   * @param String $service
+   *   The service name.
+   *
+   * @param Bool $create
+   *   Whether the item was created or updated.
+   *
+   * @return Array
+   *   The syncronization tag.
+   */
+  private function set_file_attempt_tag($item_data, $service = FALSE, $create = null) {
+	if ($service) {
+	  $msg = 'atualizado';
+	  if ($create) {
+		$msg = 'criado';
+	  }
+	  $msg = "Item foi $msg com sucesso no servico $service.";
+	}
+	else {
+	  $msg = $service;
+	}
+
+	$attempts = 1;
+
+	if (isset($item_data['-sincronizacao-']['tentativas'])) {
+	  $attempts += $item_data['-sincronizacao-']['tentativas'];
+	}
+
+	return array(
+	  '-sincronizacao-' => array(
+		'tentativas' => $attempts,
+		'hora_ultima_tentativa' => date("Y-m-d H:i:s"),
+		'ultima_msg' => $msg,
+	  ),
+	);
+  }
+
+  /**
+   *
+   */
+  private function scan_dados_fail($item_data, $subfolder_name, $file_name) {
 	$tmp = $this->folders['tmp'];
 	$falhas_folder = "$tmp/falhas/$subfolder_name";
 	
   }
 
-  private function scan_dados_success() {
+  /**
+   *
+   */
+  private function scan_dados_success($item_data, $subfolder_name, $file_name) {
 	$tmp = $this->folders['tmp'];
 	$sucessos_folder = "$tmp/sucessos/$subfolder_name";
 	
@@ -419,15 +604,19 @@ class nx {
    * @param String $order_number
    *   The order identification number.
    *
+   * @param Bool $save_result
+   *   Whether or not the result content should be saved into
+   *   dados/consulta folder.
+   *
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_order_by_number($order_number) {
+  public function get_pedido_by_number($order_number, $save_result = TRUE) {
 	$qs = array('no' => $order_number);
 	$request = $this->retrieve_service_item($qs, 'pedido', '');
 
-	if ($request) {
-	  return $this->save_retrieved_result("pedido_no_$order_number");
+	if ($request && $save_result) {
+	  $this->save_retrieved_result("pedido_no_$order_number");
 	}
 
 	return $request;
@@ -439,14 +628,19 @@ class nx {
    * @param String $product_id
    *   The Product ID value set at the NortaoX application.
    *
+   * @param Bool $save_result
+   *   Whether or not the result content should be saved into
+   *   dados/consulta folder.
+   *
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_product_by_product_id($product_id) {
+  public function get_produto_by_product_id($product_id, $save_result = TRUE) {
 	$qs = array('product_id' => $product_id);
 	$request = $this->retrieve_service_item($qs);
-	if ($request) {
-	  return $this->save_retrieved_result("produto_product_id_$product_id");
+
+	if ($request && $save_result) {
+	  $this->save_retrieved_result("produto_product_id_$product_id");
 	}
 
 	return $request;
@@ -458,15 +652,19 @@ class nx {
    * @param String $sku
    *   The SKU value set at the NortaoX application.
    *
+   * @param Bool $save_result
+   *   Whether or not the result content should be saved into
+   *   dados/consulta folder.
+   *
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_product_by_sku($sku) {
+  public function get_produto_by_sku($sku, $save_result = TRUE) {
 	$qs = array('sku' => $sku);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request) {
-	  return $this->save_retrieved_result("produto_sku_$sku");
+	if ($request && $save_result) {
+	  $this->save_retrieved_result("produto_sku_$sku");
 	}
 
 	return $request;
@@ -478,15 +676,19 @@ class nx {
    * @param String $cod_produto_erp
    *   The product id value set at the ERP application.
    *
+   * @param Bool $save_result
+   *   Whether or not the result content should be saved into
+   *   dados/consulta folder.
+   *
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_product_by_cod_produto_erp($cod_produto_erp) {
+  public function get_produto_by_cod_produto_erp($cod_produto_erp, $save_result = TRUE) {
 	$qs = array('cod_produto_erp' => $cod_produto_erp);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request) {
-	  return $this->save_retrieved_result("produto_cod_produto_erp_$cod_produto_erp");
+	if ($request && $save_result) {
+	  $this->save_retrieved_result("produto_cod_produto_erp_$cod_produto_erp");
 	}
 
 	return $request;
@@ -495,14 +697,18 @@ class nx {
   /**
    * Retrieves a list of cities which NortaoX is or will trade in.
    *
+   * @param Bool $save_result
+   *   Whether or not the result content should be saved into
+   *   dados/consulta folder.
+   *
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_cities() {
+  public function get_cities($save_result = TRUE) {
 	$request = $this->request('cidades', '', 'get');
 
-	if ($request) {
-	  return $this->save_retrieved_result('cidades');
+	if ($request && $save_result) {
+	  $this->save_retrieved_result('cidades');
 	}
 
 	return $request;
@@ -527,8 +733,8 @@ class nx {
 	  print "Consulta foi salva em $file_full_path" . PHP_EOL;
 	}
 	catch(Exception $e) {
-	  // @TODO: Handle exceptions.
+	  $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
+	  $this->log($print);
 	}
   }
-  
 }
