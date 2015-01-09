@@ -33,7 +33,10 @@ class argv {
 	  ),
 	  'cidades' => 'Exemplo: php run.php consultar cidades',
 	),
-	'testar' => 'Exemplo: php run.php testar | Verifica se o Webservice está acessível.',
+	'resetar' => array(
+	  'login' => 'Exemplo: php run.php resetar login | Gera novo token para authenticação do usuário lojista junto a NortaoX.com',
+	),
+	'testar' => 'Exemplo: php run.php testar | Verifica se o Webservice está responsivo e se as pastas dados e tmp são acessíveis.',
   ),
   $is_dev,
   // nx object.
@@ -63,7 +66,7 @@ class argv {
 	foreach ($argv as $delta => $argument_value) {
 	  if ($delta !== 0) {
 		$argument_value = strtolower(trim($argument_value));
-	
+
 		if (isset($validation[$argument_value])) {
 		  if ($delta === 1) {
 			switch($argument_value) {
@@ -125,8 +128,13 @@ class argv {
 	  break;
 	  case 'nx':
 	  case 'consultar':
-		$this->nx = new nx($this->is_dev);
-		$this->run_nx();
+		try{
+		  $this->nx = new nx($this->is_dev);
+		  $this->run_nx();
+		}
+		catch(Exception $e) {
+		  // @TODO: Handle exceptions.
+		}
 	  break;
 	}
   }
@@ -168,7 +176,7 @@ class argv {
 	// Load config.ini.
 	$root_folder = pathinfo(__DIR__);
 	$root_folder = $this->root_folder = dirname($root_folder['dirname']);
-	$config_file = $root_folder . DIRECTORY_SEPARATOR . "config.ini";
+	$config_file = "$root_folder/config.ini";
 	$config = parse_ini_file($config_file, TRUE);
 
 	if ($param_value_sent == 'mostrar') {
@@ -186,10 +194,15 @@ class argv {
 	  }
 	  eval("\$config" . $depth_pointer . " = \$param_value_sent;");
 
-	  // Write back into config.ini.
-	  $writer = new Ini();
-	  $writer->toFile($config_file, $config);
-	  exit("Nova configuracao salva com sucesso." . PHP_EOL);
+	  try {
+		// Write back into config.ini.
+		$writer = new Ini();
+		$writer->toFile($config_file, $config);
+		exit("Nova configuracao salva com sucesso." . PHP_EOL);
+	  }
+	  catch(Exception $e) {
+		// @TODO: Handle exceptions.
+	  }
 	}
   }
 
@@ -220,9 +233,13 @@ class argv {
 		$this->check_command_params(0);
 		$result = $this->nx->get_cities();
 	  break;
+	  case 'resetar login':
+		$this->check_command_params(0);
+		$this->nx->login(TRUE);
+	  break;
 	  case 'testar':
 		$this->check_command_params(0);
-		$this->nx->check_endpoint();
+		$this->nx->check(TRUE);
 	  break;
 	}
 	if ($result) {

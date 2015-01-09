@@ -1,6 +1,9 @@
 <?php
 namespace NXWSClient;
 use \Httpful\Request;
+use \Zend\Config\Writer\Ini;
+
+//@TODO Implement exceptions.
 
 class nx {
   private $session,
@@ -10,8 +13,9 @@ class nx {
 		  $folders,
 		  $log_file,
 		  $merchant_uid,
-		  $response_body_object,
-		  $response_body_json;
+		  $response_body_json,
+		  $response_code,
+		  $response_error_msg;
 
   /**
    * @param String $environment
@@ -24,9 +28,11 @@ class nx {
 	$root_folder = pathinfo(__DIR__);
 	$root_folder = $this->root_folder = dirname($root_folder['dirname']);
 
-	$config_file = $root_folder . DIRECTORY_SEPARATOR . "config.ini";
+	$config_file = "$root_folder/config.ini";
 	if (!file_exists($config_file)) {
-	  exit("O arquivo $config_file nao existe." . PHP_EOL);
+	  $this->response_code = 500;
+	  $this->response_error_msg = $msg = "O arquivo $config_file nao existe." . PHP_EOL;
+	  exit($msg);
 	}
 
 	$this->config = $config = parse_ini_file($config_file, TRUE);
@@ -36,14 +42,16 @@ class nx {
 	$this->set_folder_locations();
 
 	$current_date = date("Y-m-d");
-	$this->log_file = $log_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . "logs" . DIRECTORY_SEPARATOR . "$current_date.log";
+	$this->log_file = $log_file = $this->folders['tmp'] . "/logs/$current_date.log";
 
 	if (!isset($config['endpoint'][$environment])) {
+	  $this->response_code = 500;
 	  $time = date('G:i:s');
 	  $log = "----$time----" . PHP_EOL;
 
 	  $eol = PHP_EOL;
 	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
+	  $this->response_error_msg = $print;
 	  $log .= $print;
 
 	  file_put_contents($log_file, $log, FILE_APPEND);
@@ -55,15 +63,21 @@ class nx {
   
   /**
    * Sends a test request to the endpoint.
+   * Checks if dados and tmp folders are reachable.
    */
-  public function check_endpoint() {
+  public function check() {
 	$uri = $this->endpoint;
 
 	$request = Request::get($uri)
 	  ->send();
 
-	$this->response_code($request, $uri, TRUE);
-	print "Endpoint $uri esta acessivel." . PHP_EOL;
+	$endpoint_ok = $this->response_code($request, $uri);
+
+	if ($endpoint_ok) {
+	  print "Endpoint $uri esta acessivel." . PHP_EOL;
+	}
+
+	$this->set_folder_locations(TRUE);
   }
 
   /**
@@ -76,20 +90,15 @@ class nx {
    * @param String $uri
    *   The service URI which the service has been requested against.
    *
-   * @param Bool $print_success_msg
-   *   Whether or not this method should print out a success message when
-   *   the response is successful.
+   * @return Bool
+   *   Whether or not  the request was successful ( code 200 ).
+   *
    */
-  private function response_code($response, $uri, $print_success_msg = FALSE) {
-	$code = $response->code;
+  private function response_code($response, $uri) {
+	$this->response_code = $code = $response->code;
 
-	if ($code == 200) {
-	  if ($print_success_msg) {
-		print "SUCESSO!!!" . PHP_EOL;
-	  }
-	}
-	else {
-	  $body = $response->raw_body;
+	if ($code != 200) {
+	  $this->response_error_msg = $body = $response->raw_body;
 	  $time = date('G:i:s');
 	  $log = "----$time----" . PHP_EOL;
 	  $log_file = $this->log_file;
@@ -101,38 +110,73 @@ class nx {
 		$log .= $print;
 		print $print = $body . PHP_EOL;
 		$log .= $print;
-
-		file_put_contents($log_file, $log, FILE_APPEND);
-		exit();
 	  }
 	  file_put_contents($log_file, $log, FILE_APPEND);
-	  exit();
+	  return FALSE;
 	}
+	return TRUE;
   }
 
   /**
-   * Loads folder paths from config.ini.
+   * Loads folder's paths from config.ini and creates all the app's subfolders.
    */
-  private function set_folder_locations() {
+  private function set_folder_locations($check = FALSE) {
 	foreach($this->config['pastas'] as $folder => $folder_path) {
-	  // Make sure the correct OS directory separator is gonna be in place.
-	  $folder_path = str_replace('/', DIRECTORY_SEPARATOR, $folder_path);
+	  // Make sure forward slash directory separator is gonna be in place.
+	  $folder_path = str_replace('\\', '/', $folder_path);
 
-	  // Set this application root path as default root path for this folder.
-	  $this->folders[$folder] = str_replace('%app%', $this->root_folder, $folder_path);
+	  // Set this app's root path as default for this $folder.
+	  $this->folders[$folder] = $folder_path = str_replace('%app%', $this->root_folder, $folder_path);
+
+	  // Check if folders exist. If not, try to create them.
+	  $error_msgs = FALSE;
+	  if (!is_dir($folder_path) || $check) {
+		$dados_subfolders = array('produto', 'consulta');
+		$tmp_subfolders = array(
+		  "falhas/produto",
+		  "sucessos/produto",
+		  "logs",
+		);
+
+		foreach(${$folder}  . "_subfolders" as $subfolder_name) {
+		  $full_subfolder_path = "$folder_path/$subfolder_name";
+		  $mkdir = mkdir($full_subfolder_path, 0777, TRUE);
+
+		  if (!$mkdir) {
+			$error_msgs[] = $full_subfolder_path;
+		  }
+		}
+	  }
+
+	  if ($error_msgs) {
+		print "Nao foi possivel criar as seguintes pastas:" . PHP_EOL;
+		foreach ($error_msgs as $line_number => $msg) {
+		  print $line_number + 1 . ". $msg" . PHP_EOL;
+		}
+		exit("--Verifique as permissoes do usuario--" . PHP_EOL);
+	  }
 	}
   }
 
   /**
-   * Logs in the merchant user.
+   * Authenticates the merchant user at the NortaoX.com.
+   *
+   * @param Bool $reset
+   *   Whether or not the session and the token should be renewed even when
+   *   there already is one set in file.
+   *
+   * @return Bool
+   *   Whether or not the login was successful.
    */
-  private function login() {
-	$session_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".session";
-	$token_file = $this->folders['tmp'] . DIRECTORY_SEPARATOR . ".token";
+  private function login($reset = FALSE) {
+	$session_file = $this->folders['tmp'] . "/.session";
+	$token_file = $this->folders['tmp'] . "/.token";
 
-	if (file_exists($session_file) && file_exists($token_file)) {
+	if ((file_exists($session_file) && file_exists($token_file)) && !$reset) {
 	  $this->session = file_get_contents($session_file);
 	  $this->token = file_get_contents($token_file);
+
+	  return TRUE;
 	}
 	else {
 	  // Request user authentication.
@@ -148,18 +192,29 @@ class nx {
 		->expectsJson()
 		->send();
 
-	  $this->response_code($request, $uri);
+	  $response_ok = $this->response_code($request, $uri);
 
-	  $sessid = $request->body->sessid;
-	  $session_name = $request->body->session_name;
+	  if ($response_ok) {
+		$sessid = $request->body->sessid;
+		$session_name = $request->body->session_name;
+  
+		$this->session = "$session_name=$sessid";
+		$this->token = $request->body->token;
+		file_put_contents($session_file, $this->session);
+		file_put_contents($token_file, $this->token);
 
-	  // @TODO: Get merchant uid.
-	  $merchant_uid = $this->merchant_uid = '';
+	  }
 
-	  $this->session = "$session_name=$sessid";
-	  $this->token = $request->body->token;
-	  file_put_contents($session_file, $this->session);
-	  file_put_contents($token_file, $this->token);
+	  if ($reset && $response_ok) {
+		print "Novo token foi salvo com sucesso." . PHP_EOL;
+	  }
+	  else {
+		$http_code = $this->response_code;
+		print "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
+		print $this->response_error_msg . PHP_EOL;
+	  }
+
+	  return $response_ok;
 	}
   }
 
@@ -172,42 +227,51 @@ class nx {
    * @param Array $body
    *   PHP Array of items containing the data to be later converted into Json.
    *
-   * @param String $method
+   * @param String $http_method
    *   Valid values are: get, post and put.
    *
-   * @param String $query
-   *   URL Item + Query String value. Format /item_value.json?param1=value1&param2=value2
+   * @param String $service_method
+   *   Service methodo + Query String value. Format /method.json?param1=value1&param2=value2
    *
-   * @param Bool $return_raw_data
-   *  Whether or not to return the response as a PHP object or a Json string.
-   *
-   * @return String
-   *   The Webservice response.
+   * @return Bool
+   *   Whether or not the request was successful.
    */
-  private function request($service, $body, $method, $query = '', $return_raw_data = FALSE, $print_success_msg = FALSE) {
+  private function request($service, $body, $http_method, $service_method = '') {
 	$endpoint = $this->endpoint;
+	if (!isset($this->config['servicos'][$service])) {
+	  $time = date('G:i:s');
+	  $log = "----$time----" . PHP_EOL;
+	  $log_file = $this->log_file;
+
+	  print $log = "Nao existe o servico $service no config.ini" . PHP_EOL;
+	  file_put_contents($log_file, $log, FILE_APPEND);
+
+	  return FALSE;
+	}
 	$service = $this->config['servicos'][$service];
 
-	$uri = "$endpoint/$service" . $query;
+	$uri = "$endpoint/$service" . $service_method;
 
-	$request = Request::$method($uri)
-	  ->sendsJson()
-	  ->expectsJson()
-	  ->addHeader('Cookie', $this->session)
-	  ->addHeader('X-CSRF-Token', $this->token)
-	  ->body($body)
-	  ->send();
-
-	$this->response_code($request, $uri, $print_success_msg);
-
-	$this->response_body_object = $request->body;
-	$this->response_body_json = $request->raw_body;
-
-	if ($return_raw_data) {
-	  return $request->raw_body . PHP_EOL;
+	try {
+	  $request = Request::$http_method($uri)
+		->sendsJson()
+		->expectsJson()
+		->addHeader('Cookie', $this->session)
+		->addHeader('X-CSRF-Token', $this->token)
+		->body($body)
+		->send();
+	}
+	catch (Exception $e) {
+	  print $e->getMessage();
 	}
 
-	return $request->body;
+	$reponse_ok = $this->response_code($request, $uri);
+
+	if ($reponse_ok) {
+	  $this->response_body_json = $request->raw_body;
+	}
+
+	return $reponse_ok;
   }
 
   /**
@@ -215,6 +279,9 @@ class nx {
    *
    * @param String $service
    *  The service path.
+   *
+   * @return Bool
+   *   Whether or not the request was successful.
    */
   public function create($service = 'produto') {
 	$body = array(
@@ -237,8 +304,11 @@ class nx {
    *
    * @param String $service
    *  The service path.
+   *
+   * @return Bool
+   *   Whether or not the request was successful.
    */
-  public function update($service = 'produto') {
+  public function update($service = 'produto', $service_method = 'atualizar') {
 	$body = array(
 	  //'nome' => 'update test 55',
 	  //'product_id' => 64,
@@ -254,17 +324,65 @@ class nx {
 	  'status' => 0,
 	);
 
-	return $this->request($service, $body, 'put', '/atualizar');
+	return $this->request($service, $body, 'put', "/$service_method");
   }
 
   /**
-   * Checks dados' subfolder for new files. It then reads them, calls either
+   * Checks dados/$subfolder_name for new files. It then reads them, calls either
    * create or update method.
-   * If create or update returns TRUE ( success ) it deletes the data file,
-   * otherwise moves it to tmp/falhas/<given-subfolder>.
+   * If create or update returns TRUE ( success ) it moves the data file to
+   * tmp/sucesso/$subfolder_name, otherwise moves data file o tmp/falhas/$subfolder_name.
+   *
+   * @param String $subfolder_name
+   *   The subfolder name where there will be one or more files contaning
+   *   items data for either creating or updating them to the NortaoX.com.
+   *
+   * @param String $prime_id_field_name
+   *   The item id field name at the NortaoX.com.
+   *
+   * @param Array $secondary_id_field_names
+   *   Field names that, apart from the prime id field name, also hold an
+   *   unique identification for sorting out a single item.
    * 
    */
-  public function scan_dados_folder($folder = 'produto') {
+  public function scan_dados_folder($subfolder_name = 'produto', $prime_id_field_name = 'product_id', $secondary_id_field_names = array('sku', 'cod_produto_erp')) {
+	$dados = $this->folders['dados'];
+	$item_data_folder = "$dados/$subfolder_name";
+
+	try{
+	  $files = new FilesystemIterator($item_data_folder);
+	}
+	catch(Exception $e) {
+	  // @TODO: Handle exceptions.
+	}
+	foreach ($files as $file_object) {
+	  if ($file_object->isFile()) {
+		$file_name = $file_object->getFilename();
+		$file_full_path = "$item_data_folder/$file_name";
+
+		if (filesize($file_full_path) === 0) {
+		  // File is empty. So, it goes straight into the fail's bin.
+		  $error_msg = "";
+		  $this->scan_dados_fail($file_name, $subfolder_name, $error_msg);
+		  break;
+		}
+
+		$item_data = parse_ini_file($file_full_path, TRUE);
+
+
+	  }
+	}
+  }
+
+  private function scan_dados_fail() {
+	$tmp = $this->folders['tmp'];
+	$falhas_folder = "$tmp/falhas/$subfolder_name";
+	
+  }
+
+  private function scan_dados_success() {
+	$tmp = $this->folders['tmp'];
+	$sucessos_folder = "$tmp/sucessos/$subfolder_name";
 	
   }
 
@@ -276,8 +394,11 @@ class nx {
    *
    * @param String $service
    *   The service path.
+   *   
+   * @return Bool
+   *   Whether or not the request was successful.
    */
-  private function retrieve_service_item($qs = array(), $service = 'produto') {
+  public function retrieve_service_item($qs = array(), $service = 'produto', $service_method = '/consultar') {
 	$query_string = '';
 	foreach ($qs as $param => $argument) {
 	  $query_string .= "$param=$argument&";
@@ -287,9 +408,9 @@ class nx {
 	  $query_string = "?$query_string";
 	}
 
-	$query = "/consultar.json" . $query_string;
+	$service_method = "$service_method.json" . $query_string;
 
-	return $this->request($service, '', 'get', $query);
+	return $this->request($service, '', 'get', $service_method);
   }
 
   /**
@@ -298,12 +419,18 @@ class nx {
    * @param String $order_number
    *   The order identification number.
    *
-   * @return Json
-   *   The order object in Json format.
+   * @return Bool
+   *   Whether or not the request was successful.
    */
   public function get_order_by_number($order_number) {
 	$qs = array('no' => $order_number);
-	return $this->retrieve_service_item($qs);
+	$request = $this->retrieve_service_item($qs, 'pedido', '');
+
+	if ($request) {
+	  return $this->save_retrieved_result("pedido_no_$order_number");
+	}
+
+	return $request;
   }
 
   /**
@@ -312,12 +439,17 @@ class nx {
    * @param String $product_id
    *   The Product ID value set at the NortaoX application.
    *
-   * @return Json
-   *   The product object in Json format.
+   * @return Bool
+   *   Whether or not the request was successful.
    */
   public function get_product_by_product_id($product_id) {
 	$qs = array('product_id' => $product_id);
-	return $this->retrieve_service_item($qs);
+	$request = $this->retrieve_service_item($qs);
+	if ($request) {
+	  return $this->save_retrieved_result("produto_product_id_$product_id");
+	}
+
+	return $request;
   }
 
   /**
@@ -326,12 +458,18 @@ class nx {
    * @param String $sku
    *   The SKU value set at the NortaoX application.
    *
-   * @return Json
-   *   The product object in Json format.
+   * @return Bool
+   *   Whether or not the request was successful.
    */
   public function get_product_by_sku($sku) {
 	$qs = array('sku' => $sku);
-	return $this->retrieve_service_item($qs);
+	$request = $this->retrieve_service_item($qs);
+
+	if ($request) {
+	  return $this->save_retrieved_result("produto_sku_$sku");
+	}
+
+	return $request;
   }
 
   /**
@@ -340,22 +478,57 @@ class nx {
    * @param String $cod_produto_erp
    *   The product id value set at the ERP application.
    *
-   * @return Json
-   *   The product object in Json format.
+   * @return Bool
+   *   Whether or not the request was successful.
    */
   public function get_product_by_cod_produto_erp($cod_produto_erp) {
 	$qs = array('cod_produto_erp' => $cod_produto_erp);
-	return $this->retrieve_service_item($qs);
+	$request = $this->retrieve_service_item($qs);
+
+	if ($request) {
+	  return $this->save_retrieved_result("produto_cod_produto_erp_$cod_produto_erp");
+	}
+
+	return $request;
   }
 
   /**
-   * Retrieves a list of cities which NortaoX is or will trade.
+   * Retrieves a list of cities which NortaoX is or will trade in.
    *
-   * @return Json
-   *   A Json object list of cities containg values of cod_cidade, nome and
-   *   status.
+   * @return Bool
+   *   Whether or not the request was successful.
    */
   public function get_cities() {
-	return $this->request('cidades', '', 'get');
+	$request = $this->request('cidades', '', 'get');
+
+	if ($request) {
+	  return $this->save_retrieved_result('cidades');
+	}
+
+	return $request;
   }
+
+  /**
+   * Saves a item object into a txt file. The file content has a ini structure.
+   *
+   * @param String $file_name
+   *   The name of the file which the retrieved content will be saved into.
+   */
+  private function save_retrieved_result($file_name, $file_extension = 'txt') {
+	$file_full_path = $this->folders['dados'] . "/consulta/$file_name.$file_extension";
+
+	$item = json_decode($this->response_body_json, true);
+
+	try {
+	  $writer = new Ini();
+	  $writer->toFile($file_full_path, (array) $item);
+
+	  print_r($item);
+	  print "Consulta foi salva em $file_full_path" . PHP_EOL;
+	}
+	catch(Exception $e) {
+	  // @TODO: Handle exceptions.
+	}
+  }
+  
 }
