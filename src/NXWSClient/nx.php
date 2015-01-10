@@ -6,13 +6,15 @@ use \Zend\Config\Writer\Ini;
 //@TODO Implement exceptions.
 
 class nx {
-  private $session,
+  private $root_folder,
+		  // Type array.
 		  $config,
-		  $endpoint,
-		  $root_folder,
+		  // Type array.
 		  $folders,
 		  $log_file,
-		  $merchant_uid,
+		  $endpoint,
+		  // Type array.
+		  $merchant_login,
 		  $response_body_json,
 		  $response_code,
 		  $response_error_msg;
@@ -21,41 +23,104 @@ class nx {
    * Initial construction.
    */
   public function __construct($is_dev = FALSE) {
+	$this->bootstrap_root_folder();
+	$this->bootstrap_config();
+	$this->bootstrap_folders();
+	$this->bootstrap_log_file();
+	$this->bootstrap_validate_config();
+	$this->bootstrap_endpoint($is_dev);
+	$this->bootstrap_merchant_login();
+  }
+  
+  private function bootstrap_root_folder() {
 	$root_folder = pathinfo(__DIR__);
-	$root_folder = $this->root_folder = dirname($root_folder['dirname']);
+	$this->root_folder = dirname($root_folder['dirname']);
+  }
 
+  private function bootstrap_config() {
+	$root_folder = $this->root_folder;
 	$config_file = "$root_folder/config.ini";
+
 	if (!file_exists($config_file)) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $msg = "O arquivo $config_file nao existe." . PHP_EOL;
 	  exit($msg);
 	}
-
 	$this->config = $config = parse_ini_file($config_file, TRUE);
-	$environment = ($is_dev) ? 'dev' : $config['ambiente'];
 
-	$this->endpoint = $config['endpoint'][$environment];
-	if ($config) {
-	  $this->set_folder_locations();
-  
-	  $current_date = date("Y-m-d");
-	  $this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
-  
-	  if (!isset($config['endpoint'][$environment])) {
-		$eol = PHP_EOL;
-		print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
-		$this->log($print);
-		exit();
-	  }
-  
-	  $this->login();
-	}
-	else {
+	if (!$config) {
 	  // Cant open config.ini.
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Nao foi possivel abrir o arquivo $config_file." . PHP_EOL;
 	  exit($print);
 	}
+
+	// config.ini must have [pastas] section to start off. Further validation
+	// will be done by bootstrap_validate_config().
+	if (empty($config['pastas'])) {
+	  $this->response_code = 500;
+	  $this->response_error_msg = $print = "A secao [pastas] nao existe ou nao tem atributos definidos. Arquivo $config_file." . PHP_EOL;
+	  exit($print);
+	}
+
+	if (empty($config['pastas']['dados']) || empty($config['pastas']['tmp'])) {
+	  $this->response_code = 500;
+	  $this->response_error_msg = $print = "Os valores para dados ou tmp nao estao definidos. Arquivo $config_file." . PHP_EOL;
+	  exit($print);
+	}
+  }
+
+  private function bootstrap_log_file() {
+	$current_date = date("Y-m-d");
+	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
+  }
+
+  private function bootstrap_validate_config() {
+	$config = $this->config;
+
+	if (empty($config['ambiente'])) {
+	  $this->response_code = 500;
+	  $this->response_error_msg = $print = "O valor para ambiente nao esta definido. Arquivo $config_file." . PHP_EOL;
+	  $this->log($print);
+	  exit($print);
+	}
+
+	if (empty($config['endpoint']['sandbox']) || empty($config['endpoint']['producao'])) {
+	  $this->response_code = 500;
+	  $this->response_error_msg = $print = "Os valores para producao ou sandbox nao estao definidos. Arquivo $config_file." . PHP_EOL;
+	  $this->log($print);
+	  exit($print);
+	}
+
+	if (empty($config['servicos']['login']) ||
+		empty($config['servicos']['produto']) ||
+		empty($config['servicos']['pedido']) ||
+		empty($config['servicos']['cidades'])) {
+	  $this->response_code = 500;
+	  $this->response_error_msg = $print = "Os valores para login ou produto ou pedido ou cidades nao estao definidos. Arquivo $config_file." . PHP_EOL;
+	  $this->log($print);
+	  exit($print);
+	}
+
+	if (empty($config['credenciais']['username']) || empty($config['credenciais']['password'])) {
+	  $this->response_code = 500;
+	  $this->response_error_msg = $print = "Os valores para username ou password nao estao definidos. Arquivo $config_file." . PHP_EOL;
+	  $this->log($print);
+	  exit($print);
+	}
+  }
+
+  private function bootstrap_endpoint($is_dev) {
+	$environment = ($is_dev) ? 'dev' : $this->config['ambiente'];
+
+	if (!isset($config['endpoint'][$environment])) {
+	  $eol = PHP_EOL;
+	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
+	  $this->log($print);
+	  exit();
+	}
+
+	$this->endpoint = $this->config['endpoint'][$environment];
   }
 
   /**
@@ -94,7 +159,7 @@ class nx {
 	  print "Endpoint $uri esta acessivel." . PHP_EOL;
 	}
 
-	$this->set_folder_locations(TRUE);
+	$this->bootstrap_folders(TRUE);
   }
 
   /**
@@ -132,7 +197,7 @@ class nx {
   /**
    * Loads folder's paths from config.ini and creates all the app's subfolders.
    */
-  private function set_folder_locations($check = FALSE) {
+  private function bootstrap_folders($check = FALSE) {
 	foreach($this->config['pastas'] as $folder => $folder_path) {
 	  // Make sure forward slash directory separator is gonna be in place.
 	  $folder_path = str_replace('\\', '/', $folder_path);
@@ -153,7 +218,8 @@ class nx {
 		foreach(${$folder . "_subfolders"} as $subfolder_name) {
 		  $full_subfolder_path = "$folder_path/$subfolder_name";
 		  $mkdir = TRUE;
-		  if (!$full_subfolder_path) {
+
+		  if (!file_exists($full_subfolder_path)) {
 			$mkdir = mkdir($full_subfolder_path, 0777, TRUE);
 		  }
 
@@ -170,10 +236,9 @@ class nx {
 		}
 		exit("--Verifique as permissoes do usuario--" . PHP_EOL);
 	  }
-
-	  if ($check) {
-		exit("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL);
-	  }
+	}
+	if ($check) {
+	  exit("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL);
 	}
   }
 
@@ -187,18 +252,19 @@ class nx {
    * @return Bool
    *   Whether or not the login was successful.
    */
-  private function login($reset = FALSE) {
+  private function bootstrap_merchant_login($reset = FALSE) {
 	$session_file = $this->folders['tmp'] . "/.session";
-	$token_file = $this->folders['tmp'] . "/.token";
 
-	if ((file_exists($session_file) && file_exists($token_file)) && !$reset) {
-	  $this->session = file_get_contents($session_file);
-	  $this->token = file_get_contents($token_file);
+	if (file_exists($session_file) && !$reset) {
+	  $session = parse_ini_file($session_file, TRUE);
+
+	  $this->merchant_login['session'] = $session['session'];
+	  $this->merchant_login['token'] = $session['token'];
 
 	  return TRUE;
 	}
 	else {
-	  // Request user authentication.
+	  // Request merchant authentication.
 	  $endpoint = $this->endpoint;
 	  $service = $this->config['servicos']['login'];
 	  $username = $this->config['credenciais']['username'];
@@ -217,20 +283,24 @@ class nx {
 		$sessid = $request->body->sessid;
 		$session_name = $request->body->session_name;
   
-		$this->session = "$session_name=$sessid";
-		$this->token = $request->body->token;
-		file_put_contents($session_file, $this->session);
-		file_put_contents($token_file, $this->token);
+		$session = array();
+		$this->merchant_login['session'] = $session['session'] = "$session_name=$sessid";
+		$this->merchant_login['token'] = $session['token'] = $request->body->token;
 
+		$writer = new Ini();
+		$writer->toFile($session_file, $session);
+	  }
+	  else {
+		$http_code = $this->response_code;
+		print $print = "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
+		print $this->response_error_msg . PHP_EOL;
+
+		$print .= $this->response_error_msg;
+		$this->log($print);
 	  }
 
 	  if ($reset && $response_ok) {
 		print "Novo token foi salvo com sucesso." . PHP_EOL;
-	  }
-	  else {
-		$http_code = $this->response_code;
-		print "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
-		print $this->response_error_msg . PHP_EOL;
 	  }
 
 	  return $response_ok;
@@ -257,12 +327,6 @@ class nx {
    */
   private function request($service, $body, $http_method, $service_method = '') {
 	$endpoint = $this->endpoint;
-	if (!isset($this->config['servicos'][$service])) {
-	  print $print = "Nao existe o servico $service no config.ini" . PHP_EOL;
-	  $this->log($print);
-
-	  return FALSE;
-	}
 	$service = $this->config['servicos'][$service];
 
 	$uri = "$endpoint/$service" . $service_method;
@@ -271,8 +335,8 @@ class nx {
 	  $request = Request::$http_method($uri)
 		->sendsJson()
 		->expectsJson()
-		->addHeader('Cookie', $this->session)
-		->addHeader('X-CSRF-Token', $this->token)
+		->addHeader('Cookie', $this->merchant_login['session'])
+		->addHeader('X-CSRF-Token', $this->merchant_login['token'])
 		->body($body)
 		->send();
 	}
@@ -398,7 +462,8 @@ class nx {
 		  // File is empty. So, it goes straight into the fail's bin.
 		  $print = 'O arquivo tah vazio.' . PHP_EOL;
 
-		  $item_data = set_file_attempt_tag($item_data, $print);
+		  $item_data = array();
+		  $this->set_sync_attempt_tag($item_data, $print);
 
 		  $this->scan_dados_fail($item_data, $subfolder_name, $file_name);
 		  print $print;
@@ -416,12 +481,12 @@ class nx {
 		  if (is_array($item_file_data[$first_key])) {
 			// There are more than one item in the file.
 			foreach ($item_file_data as $item => $item_data) {
-			  $this->scan_dados_item_data($item_data, $subfolder_name, $prime_id_field_name, $secondary_id_field_names, $result);
+			  $this->scan_dados_item_data($item_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
 			}
 		  }
 		  else {
 			// There is only one item in the file.
-			$this->scan_dados_item_data($item_file_data, $subfolder_name, $prime_id_field_name, $secondary_id_field_names, $result);
+			$this->scan_dados_item_data($item_file_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
 		  }
 		}
 		else {
@@ -460,6 +525,9 @@ class nx {
    * @param String $service
    *   The service name.
    *
+   * @param String $file_name
+   *   The original file name.
+   *
    * @param String $prime_id_field_name
    *   See scan_dados_folder().
    *
@@ -467,7 +535,7 @@ class nx {
    *   See scan_dados_folder().
    *
    */
-  private function scan_dados_item_data($item_data, $service, $prime_id_field_name, $secondary_id_field_names, &$result) {
+  private function scan_dados_item_data($item_data, $service, $file_name, $prime_id_field_name, $secondary_id_field_names, &$result) {
 	$create = TRUE;
 	if (!isset($item_data[$prime_id_field_name])) {
 	  // Try to retrive the item from the webservice using the
@@ -483,14 +551,22 @@ class nx {
 			if ($item_exists) {
 			  $create = FALSE;
 
-			  // This item gotta be updated.
+			  // This item already exists and gotta be updated.
 			  $update_ok = $this->update($item_data, $service);
+			  $this->set_sync_attempt_tag($item_data, $service, $create);
 
 			  if ($update_ok) {
-				$result['success'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+				$result['success'][] = array(
+				  'item_data' => $item_data,
+				  'file_name' => $file_name,
+				);
 				return;
 			  }
-			  $result['fail'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+
+			  $result['fail'][] = array(
+				'item_data' => $item_data,
+				'file_name' => $file_name,
+			  );
 			}
 		  }
 		  else {
@@ -503,11 +579,17 @@ class nx {
 
 	if ($create) {
 	  $create_ok = $this->create($item_data, $service);
+	  $this->set_sync_attempt_tag($item_data, $service, $create);
+
 	  if ($create_ok) {
-		$result['success'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+		$result['success'][] = array(
+		  'item_data' => $item_data,
+		  'file_name' => $file_name,
+		);
+		return;
 	  }
 
-	  $result['fail'][] = $this->set_file_attempt_tag($item_data, $service, $create);
+	  $result['fail'][] = $item_data;
 	}
   }
 
@@ -526,7 +608,7 @@ class nx {
    * @return Array
    *   The syncronization tag.
    */
-  private function set_file_attempt_tag($item_data, $service = FALSE, $create = null) {
+  private function set_sync_attempt_tag(&$item_data, $service = FALSE, $create = null) {
 	if ($service) {
 	  $msg = 'atualizado';
 	  if ($create) {
@@ -544,28 +626,28 @@ class nx {
 	  $attempts += $item_data['-sincronizacao-']['tentativas'];
 	}
 
-	return array(
-	  '-sincronizacao-' => array(
-		'tentativas' => $attempts,
-		'hora_ultima_tentativa' => date("Y-m-d H:i:s"),
-		'ultima_msg' => $msg,
-	  ),
+	$item_data['-sincronizacao-'] = array(
+	  'tentativas' => $attempts,
+	  'hora_ultima_tentativa' => date("Y-m-d H:i:s"),
+	  'ultima_msg' => $msg,
 	);
   }
 
   /**
    *
    */
-  private function scan_dados_fail($item_data, $subfolder_name, $file_name) {
+  private function scan_dados_fail($file_data, $subfolder_name, $file_name) {
 	$tmp = $this->folders['tmp'];
 	$falhas_folder = "$tmp/falhas/$subfolder_name";
+	$file_full_path = "$falhas_folder/$file_name";
+
 	
   }
 
   /**
    *
    */
-  private function scan_dados_success($item_data, $subfolder_name, $file_name) {
+  private function scan_dados_success($file_data, $subfolder_name, $file_name) {
 	$tmp = $this->folders['tmp'];
 	$sucessos_folder = "$tmp/sucessos/$subfolder_name";
 	

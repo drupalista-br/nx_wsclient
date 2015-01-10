@@ -5,12 +5,6 @@ use \NXWSClient\nx;
 
 require_once "vendor/autoload.php";
 
-$array = parse_ini_file('/home/francisco/drupalista-br/nx_wsclient/dados/consulta/cidades.txt', TRUE);
-
-print current(array_keys($array));
-
-print "\n";
-exit();
 /*
 $item_data_folder = __DIR__;
 try {
@@ -37,8 +31,14 @@ exit();*/
 
 $writer = new Ini();
 $writer->toFile('test.ini', $config);*/
+//$config = array();
 
+if (empty($config['ambiente'])) {
+  print "test\n";
+}
+
+exit();
 $test = new nx(TRUE);
 
-print_r( $test->check() );
+$test->check();
 
