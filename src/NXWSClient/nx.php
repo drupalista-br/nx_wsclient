@@ -1,9 +1,9 @@
 <?php
 namespace NXWSClient;
-use \Httpful\Request;
-use \Zend\Config\Writer\Ini;
 
-//@TODO Implement exceptions.
+use Httpful\Request;
+use Zend\Config\Writer\Ini;
+use Pimple\Container;
 
 class nx {
   private $root_folder,
@@ -44,7 +44,8 @@ class nx {
 	if (!file_exists($config_file)) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $msg = "O arquivo $config_file nao existe." . PHP_EOL;
-	  exit($msg);
+	  $this->halt($msg);
+	  return FALSE;
 	}
 	$this->config = $config = parse_ini_file($config_file, TRUE);
 
@@ -52,7 +53,8 @@ class nx {
 	  // Cant open config.ini.
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Nao foi possivel abrir o arquivo $config_file." . PHP_EOL;
-	  exit($print);
+	  $this->halt($print);
+	  return FALSE;
 	}
 
 	// config.ini must have [pastas] section to start off. Further validation
@@ -60,13 +62,15 @@ class nx {
 	if (empty($config['pastas'])) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "A secao [pastas] nao existe ou nao tem atributos definidos. Arquivo $config_file." . PHP_EOL;
-	  exit($print);
+	  $this->halt($print);
+	  return FALSE;
 	}
 
 	if (empty($config['pastas']['dados']) || empty($config['pastas']['tmp'])) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Os valores para dados ou tmp nao estao definidos. Arquivo $config_file." . PHP_EOL;
-	  exit($print);
+	  $this->halt($print);
+	  return FALSE;
 	}
   }
 
@@ -82,14 +86,18 @@ class nx {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "O valor para ambiente nao esta definido. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  exit($print);
+	  $this->halt($print);
+	  return FALSE;
 	}
 
-	if (empty($config['endpoint']['sandbox']) || empty($config['endpoint']['producao'])) {
+	if (empty($config['endpoint']['sandbox']) ||
+		empty($config['endpoint']['producao']) ||
+		empty($config['endpoint']['dev'])) {
 	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "Os valores para producao ou sandbox nao estao definidos. Arquivo $config_file." . PHP_EOL;
+	  $this->response_error_msg = $print = "Os valores para producao ou sandbox ou dev nao estao definidos. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  exit($print);
+	  $this->halt($print);
+	  return FALSE;
 	}
 
 	if (empty($config['servicos']['login']) ||
@@ -99,14 +107,15 @@ class nx {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Os valores para login ou produto ou pedido ou cidades nao estao definidos. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  exit($print);
+	  $this->halt($print);
+	  return FALSE;
 	}
 
 	if (empty($config['credenciais']['username']) || empty($config['credenciais']['password'])) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Os valores para username ou password nao estao definidos. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  exit($print);
+	  $this->halt($print);
 	}
   }
 
@@ -117,7 +126,8 @@ class nx {
 	  $eol = PHP_EOL;
 	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
 	  $this->log($print);
-	  exit();
+	  $this->halt();
+	  return FALSE;
 	}
 
 	$this->endpoint = $this->config['endpoint'][$environment];
@@ -234,11 +244,13 @@ class nx {
 		foreach ($error_msgs as $line_number => $msg) {
 		  print $line_number + 1 . ". $msg" . PHP_EOL;
 		}
-		exit("--Verifique as permissoes do usuario--" . PHP_EOL);
+		$this->halt("--Verifique as permissoes do usuario--" . PHP_EOL);
+		return FALSE;
 	  }
 	}
 	if ($check) {
-	  exit("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL);
+	  $this->halt("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL);
+	  return TRUE;
 	}
   }
 
@@ -560,7 +572,7 @@ class nx {
 				  'item_data' => $item_data,
 				  'file_name' => $file_name,
 				);
-				return;
+				return TRUE;
 			  }
 
 			  $result['fail'][] = array(
@@ -586,7 +598,7 @@ class nx {
 		  'item_data' => $item_data,
 		  'file_name' => $file_name,
 		);
-		return;
+		return TRUE;
 	  }
 
 	  $result['fail'][] = $item_data;
@@ -818,5 +830,14 @@ class nx {
 	  $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
 	  $this->log($print);
 	}
+  }
+
+  /**
+   * This method is needed solely because of Unit Testing. Most of the
+   * times the Unit Testing shouldn't get into a halt so this method gets
+   * stubbed out.
+   */
+  private function halt($msg = '') {
+	exit($msg);
   }
 }

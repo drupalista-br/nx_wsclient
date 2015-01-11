@@ -1,8 +1,8 @@
 <?php
 namespace NXWSClient;
 
-use \Zend\Config\Writer\Ini;
-use \NXWSClient\nx;
+use Zend\Config\Writer\Ini;
+use NXWSClient\nx;
 
 class argv {
   private $expected_arguments = array(

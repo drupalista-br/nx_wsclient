@@ -10,6 +10,7 @@ return array(
     'Zend\\Stdlib\\' => array($vendorDir . '/zendframework/zend-stdlib'),
     'Zend\\Config\\' => array($vendorDir . '/zendframework/zend-config'),
     'Symfony\\Component\\Yaml\\' => array($vendorDir . '/symfony/yaml'),
+    'Pimple' => array($vendorDir . '/pimple/pimple/src'),
     'NXWSClient' => array($baseDir . '/src'),
     'Httpful' => array($vendorDir . '/nategood/httpful/src'),
     'Doctrine\\Instantiator\\' => array($vendorDir . '/doctrine/instantiator/src'),
