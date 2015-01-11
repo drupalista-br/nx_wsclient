@@ -6,6 +6,9 @@ use Zend\Config\Writer\Ini;
 use Pimple\Container;
 
 class nx {
+  // Holds external dependencies.
+  public $container;
+
   private $root_folder,
 		  // Type array.
 		  $config,
@@ -20,23 +23,69 @@ class nx {
 		  $response_error_msg;
 
   /**
-   * Initial construction.
+   * Initial bootstrap.
+   *
+   * @param Bool $is_dev
+   *   Whether or not this is a dev machine which has a local webservices
+   *   server.
    */
   public function __construct($is_dev = FALSE) {
+	// Dependencies container.
+	$this->bootstrap_container();
+	// Defines this app's root folder.
 	$this->bootstrap_root_folder();
+	// Load the config.ini and do basic validation on it.
 	$this->bootstrap_config();
+	// Create dados and tmp folders and their subfolders.
 	$this->bootstrap_folders();
+	// Defines the full path name of a log file which will store eventual
+	// errors and webservices failures for this object instance.
 	$this->bootstrap_log_file();
+	// Does futher validation on the contents of config.ini.
 	$this->bootstrap_validate_config();
+	// Defines which endpoint this instance will make use of.
 	$this->bootstrap_endpoint($is_dev);
+	// Loads the merchant session credentials and token for webservice
+	// request authentication.
 	$this->bootstrap_merchant_login();
   }
-  
+
+  /**
+   * Dependencies container.
+   */
+  private function bootstrap_container() {
+	$container = new Container();
+
+	$container['date_time'] = function () {
+	  return new DateTime();
+	};
+
+	$container['request'] = function ($method, $uri) {
+	  return Request::$method($uri);
+	};
+
+	$container['ini_writer'] = function () {
+	  return new Ini();
+	};
+
+	$container['scan_folder'] = function ($folder_path) {
+	  return new FilesystemIterator($folder_path);
+	};
+
+	$this->container = $container;
+  }
+
+  /**
+   * Defines this app root folder.
+   */
   private function bootstrap_root_folder() {
 	$root_folder = pathinfo(__DIR__);
 	$this->root_folder = dirname($root_folder['dirname']);
   }
 
+  /**
+   * Load the config.ini and do basic validation on it.
+   */
   private function bootstrap_config() {
 	$root_folder = $this->root_folder;
 	$config_file = "$root_folder/config.ini";
@@ -74,11 +123,18 @@ class nx {
 	}
   }
 
+  /**
+   * Defines the full path name of a log file which will store eventual
+   * errors and webservices failures for the current instance.
+   */
   private function bootstrap_log_file() {
 	$current_date = date("Y-m-d");
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
   }
 
+  /**
+   * Does futher validation on the contents of config.ini.
+   */
   private function bootstrap_validate_config() {
 	$config = $this->config;
 
@@ -119,6 +175,13 @@ class nx {
 	}
   }
 
+  /**
+   * Defines which endpoint this instance will make use of.
+   *
+   * @param Bool $is_dev
+   *   Whether or not this is a dev machine which has a local webservice
+   *   server.
+   */
   private function bootstrap_endpoint($is_dev) {
 	$environment = ($is_dev) ? 'dev' : $this->config['ambiente'];
 
@@ -134,7 +197,7 @@ class nx {
   }
 
   /**
-   * Logs failures.
+   * Logs errors and webservices failures into a log file.
    *
    * @param String $msg
    *   Message to log.
@@ -186,7 +249,7 @@ class nx {
    *   Whether or not  the request was successful ( code 200 ).
    *
    */
-  private function response_code($response, $uri) {
+  private function response_code(Request $response, $uri) {
 	$this->response_code = $code = $response->code;
 
 	if ($code != 200) {
@@ -255,7 +318,7 @@ class nx {
   }
 
   /**
-   * Authenticates the merchant user at the NortaoX.com.
+   * Authenticates the merchant user at the NortaoX.com webservice.
    *
    * @param Bool $reset
    *   Whether or not the session and the token should be renewed even when
@@ -563,7 +626,7 @@ class nx {
 			if ($item_exists) {
 			  $create = FALSE;
 
-			  // This item already exists and gotta be updated.
+			  // This item already exists at the webservice, so lets update it.
 			  $update_ok = $this->update($item_data, $service);
 			  $this->set_sync_attempt_tag($item_data, $service, $create);
 
@@ -579,6 +642,7 @@ class nx {
 				'item_data' => $item_data,
 				'file_name' => $file_name,
 			  );
+			  return FALSE;
 			}
 		  }
 		  else {
@@ -616,9 +680,6 @@ class nx {
    *
    * @param Bool $create
    *   Whether the item was created or updated.
-   *
-   * @return Array
-   *   The syncronization tag.
    */
   private function set_sync_attempt_tag(&$item_data, $service = FALSE, $create = null) {
 	if ($service) {
@@ -825,16 +886,18 @@ class nx {
 
 	  print_r($item);
 	  print "Consulta foi salva em $file_full_path" . PHP_EOL;
+	  return TRUE;
 	}
 	catch(Exception $e) {
 	  $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
 	  $this->log($print);
 	}
+	return FALSE;
   }
 
   /**
    * This method is needed solely because of Unit Testing. Most of the
-   * times the Unit Testing shouldn't get into a halt so this method gets
+   * time the Unit Testing shouldn't get into a halt so this method gets
    * stubbed out.
    */
   private function halt($msg = '') {
