@@ -6,6 +6,7 @@ use Zend\Config\Writer\Ini;
 use Pimple\Container;
 use DateTime;
 use FilesystemIterator;
+use Exception;
 
 class nx {
   // Holds external dependencies.
@@ -22,15 +23,21 @@ class nx {
 		  $response_error_msg;
 
   /**
-   * Initial bootstrap.
+   * Initial Constructor.
    *
    * @param Bool $is_dev
    *   Whether or not this is a dev machine which has a local webservices
    *   server.
    */
   public function __construct($is_dev = FALSE) {
-	// Dependencies container.
+	// External dependencies container.
 	$this->bootstrap_container();
+  }
+
+  /**
+   * Bootstraps the app's essential configurations.
+   */
+  public function bootstrap() {
 	// Defines this app's root folder.
 	$this->bootstrap_root_folder();
 	// Loads the config.ini and do basic validation on it.
@@ -50,28 +57,41 @@ class nx {
   }
 
   /**
-   * Dependencies container.
+   * Defines external dependencies making it easier for mocking those
+   * dependencies at unit testing.
    */
   private function bootstrap_container() {
 	$container = new Container();
 
+	// Date and Time.
 	$container['date_time'] = function($c) {
 	  return new DateTime();
 	};
 
+	// Http requests.
 	$container['request_method'] = '';
 	$container['request_uri'] = '';
 	$container['request'] = function($c) {
+	  // GET, POST or PUT.
 	  $method = $c['request_method'];
+	  // The service full URI.
 	  $uri = $c['request_uri'];
 
 	  return Request::$method($uri);
 	};
 
+	// File get cont.
+	$container['ini_reader_file_path'] = '';
+	$container['ini_reader'] = function($c) {
+	  return parse_ini_file($c['ini_reader_file_path'], TRUE);
+	};
+
+	// Ini file writer.
 	$container['ini_writer'] = function($c) {
 	  return new Ini();
 	};
 
+	// Directory and file listing.
 	$container['scan_folder_path'] = '';
 	$container['scan_folder'] = function($c) {
 	  return new FilesystemIterator($c['scan_folder_path']);
@@ -98,17 +118,17 @@ class nx {
 	if (!file_exists($config_file)) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $msg = "O arquivo $config_file nao existe." . PHP_EOL;
-	  $this->halt($msg);
-	  return FALSE;
+	  throw new Exception($msg);
 	}
-	$this->config = $config = parse_ini_file($config_file, TRUE);
+
+	$this->container['ini_reader_file_path'] = $config_file;
+	$this->config = $config = $this->container['ini_reader'];
 
 	if (!$config) {
 	  // Cant open config.ini.
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Nao foi possivel abrir o arquivo $config_file." . PHP_EOL;
-	  $this->halt($print);
-	  return FALSE;
+	  throw new Exception($print);
 	}
 
 	// config.ini must have [pastas] section to start off. Further validation
@@ -116,15 +136,13 @@ class nx {
 	if (empty($config['pastas'])) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "A secao [pastas] nao existe ou nao tem atributos definidos. Arquivo $config_file." . PHP_EOL;
-	  $this->halt($print);
-	  return FALSE;
+	  throw new Exception($print);
 	}
 
 	if (empty($config['pastas']['dados']) || empty($config['pastas']['tmp'])) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Os valores para dados ou tmp nao estao definidos. Arquivo $config_file." . PHP_EOL;
-	  $this->halt($print);
-	  return FALSE;
+	  throw new Exception($print);
 	}
   }
 
@@ -149,8 +167,7 @@ class nx {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "O valor para ambiente nao esta definido. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  $this->halt($print);
-	  return FALSE;
+	  throw new Exception($print);
 	}
 
 	if (empty($config['endpoint']['sandbox']) ||
@@ -159,8 +176,7 @@ class nx {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Os valores para producao ou sandbox ou dev nao estao definidos. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  $this->halt($print);
-	  return FALSE;
+	  throw new Exception($print);
 	}
 
 	if (empty($config['servicos']['login']) ||
@@ -170,15 +186,14 @@ class nx {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Os valores para login ou produto ou pedido ou cidades nao estao definidos. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  $this->halt($print);
-	  return FALSE;
+	  throw new Exception($print);
 	}
 
 	if (empty($config['credenciais']['username']) || empty($config['credenciais']['password'])) {
 	  $this->response_code = 500;
 	  $this->response_error_msg = $print = "Os valores para username ou password nao estao definidos. Arquivo $config_file." . PHP_EOL;
 	  $this->log($print);
-	  $this->halt($print);
+	  throw new Exception($print);
 	}
   }
 
@@ -196,8 +211,7 @@ class nx {
 	  $eol = PHP_EOL;
 	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
 	  $this->log($print);
-	  $this->halt();
-	  return FALSE;
+	  throw new Exception($print);
 	}
 
 	$this->endpoint = $this->config['endpoint'][$environment];
@@ -315,16 +329,14 @@ class nx {
 
 	  if ($error_msgs) {
 		print "Nao foi possivel criar ou nao eh possivel gravar arquivos dentro das seguintes pastas:" . PHP_EOL;
-		foreach ($error_msgs as $line_number => $msg) {
-		  print $line_number + 1 . ". $msg" . PHP_EOL;
+		foreach ($error_msgs as $error_number => $msg) {
+		  print $error_number + 1 . ". $msg" . PHP_EOL;
 		}
-		$this->halt("--Verifique as permissoes do usuario--" . PHP_EOL);
-		return FALSE;
+		throw new Exception("--Verifique as permissoes do usuario--" . PHP_EOL);
 	  }
 	}
 	if ($check) {
-	  $this->halt("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL);
-	  return TRUE;
+	  print "As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL;
 	}
   }
 
@@ -342,7 +354,8 @@ class nx {
 	$session_file = $this->folders['tmp'] . "/.session";
 
 	if (file_exists($session_file) && !$reset) {
-	  $session = parse_ini_file($session_file, TRUE);
+	  $this->container['ini_reader_file_path'] = $session_file;
+	  $session = $this->container['ini_reader'];
 
 	  $this->merchant_login['session'] = $session['session'];
 	  $this->merchant_login['token'] = $session['token'];
@@ -565,7 +578,8 @@ class nx {
 		  break;
 		}
 
-		$item_file_data = parse_ini_file($file_full_path, TRUE);
+		$this->container['ini_reader_file_path'] = $file_full_path;
+		$item_file_data = $this->container['ini_reader'];
 		if ($item_file_data) {
 		  $first_key = current(array_keys($item_file_data));
   
@@ -904,21 +918,10 @@ class nx {
 
 	  print_r($item);
 	  print "Consulta foi salva em $file_full_path" . PHP_EOL;
-	  return TRUE;
 	}
 	catch(Exception $e) {
 	  $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
 	  $this->log($print);
 	}
-	return FALSE;
-  }
-
-  /**
-   * This method is needed solely because of Unit Testing. Most of the
-   * time the Unit Testing shouldn't get into a halt so this method gets
-   * stubbed out.
-   */
-  private function halt($msg = '') {
-	exit($msg);
   }
 }

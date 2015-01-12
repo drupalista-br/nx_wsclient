@@ -10,10 +10,12 @@ require_once "vendor/autoload.php";
 
 $test = new nx(TRUE);
 
-$test->container['scan_folder_path'] = '/home/francisco/drupalista-br/nx_wsclient';
+$date_time = array('test');
 
-$folders = $test->container['scan_folder'];
+$test->container['date_time'] = function($c) {
+  return array('test');
+};
 
-foreach($folders as $folder) {
-  print $folder->getFilename() . "\n";
-}
+$dt = $test->container['date_time'];
+
+print_r($dt);
