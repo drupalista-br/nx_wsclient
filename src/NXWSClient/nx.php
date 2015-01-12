@@ -4,20 +4,19 @@ namespace NXWSClient;
 use Httpful\Request;
 use Zend\Config\Writer\Ini;
 use Pimple\Container;
+use DateTime;
+use FilesystemIterator;
 
 class nx {
   // Holds external dependencies.
   public $container;
 
   private $root_folder,
-		  // Type array.
-		  $config,
-		  // Type array.
-		  $folders,
+		  $config = array(),
+		  $folders = array(),
 		  $log_file,
 		  $endpoint,
-		  // Type array.
-		  $merchant_login,
+		  $merchant_login = array('session' => '', 'token' => ''),
 		  $response_body_json,
 		  $response_code,
 		  $response_error_msg;
@@ -34,14 +33,14 @@ class nx {
 	$this->bootstrap_container();
 	// Defines this app's root folder.
 	$this->bootstrap_root_folder();
-	// Load the config.ini and do basic validation on it.
+	// Loads the config.ini and do basic validation on it.
 	$this->bootstrap_config();
-	// Create dados and tmp folders and their subfolders.
+	// Creates dados and tmp folders and their subfolders.
 	$this->bootstrap_folders();
 	// Defines the full path name of a log file which will store eventual
 	// errors and webservices failures for this object instance.
 	$this->bootstrap_log_file();
-	// Does futher validation on the contents of config.ini.
+	// Does further validation on the contents of config.ini.
 	$this->bootstrap_validate_config();
 	// Defines which endpoint this instance will make use of.
 	$this->bootstrap_endpoint($is_dev);
@@ -56,20 +55,26 @@ class nx {
   private function bootstrap_container() {
 	$container = new Container();
 
-	$container['date_time'] = function () {
+	$container['date_time'] = function($c) {
 	  return new DateTime();
 	};
 
-	$container['request'] = function ($method, $uri) {
+	$container['request_method'] = '';
+	$container['request_uri'] = '';
+	$container['request'] = function($c) {
+	  $method = $c['request_method'];
+	  $uri = $c['request_uri'];
+
 	  return Request::$method($uri);
 	};
 
-	$container['ini_writer'] = function () {
+	$container['ini_writer'] = function($c) {
 	  return new Ini();
 	};
 
-	$container['scan_folder'] = function ($folder_path) {
-	  return new FilesystemIterator($folder_path);
+	$container['scan_folder_path'] = '';
+	$container['scan_folder'] = function($c) {
+	  return new FilesystemIterator($c['scan_folder_path']);
 	};
 
 	$this->container = $container;
@@ -128,7 +133,9 @@ class nx {
    * errors and webservices failures for the current instance.
    */
   private function bootstrap_log_file() {
-	$current_date = date("Y-m-d");
+	$current_date = $this->container['date_time']
+	  ->format("Y-m-d");
+
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
   }
 
@@ -207,7 +214,9 @@ class nx {
 	  $log_file = $this->log_file;
 
 	  $this->response_code = 500;
-	  $time = date('G:i:s');
+	  $time = $this->container['date_time']
+	    ->format('G:i:s');
+
 	  $log = "----$time----" . PHP_EOL;
 	  $log .= $msg;
 
@@ -223,7 +232,9 @@ class nx {
   public function check() {
 	$uri = $this->endpoint;
 
-	$request = Request::get($uri)
+	$this->container['request_method'] = 'get';
+	$this->container['request_uri'] = $uri;
+	$request = $this->container['request']
 	  ->send();
 
 	$endpoint_ok = $this->response_code($request, $uri);
@@ -347,7 +358,9 @@ class nx {
 
 	  $uri = "$endpoint/$service";
 
-	  $request = Request::post($uri)
+	  $this->container['request_method'] = 'post';
+	  $this->container['request_uri'] = $uri;
+	  $request = $this->container['request']
 		->body("username=$username&password=$password")
 		->expectsJson()
 		->send();
@@ -362,7 +375,7 @@ class nx {
 		$this->merchant_login['session'] = $session['session'] = "$session_name=$sessid";
 		$this->merchant_login['token'] = $session['token'] = $request->body->token;
 
-		$writer = new Ini();
+		$writer = $this->container['ini_writer'];
 		$writer->toFile($session_file, $session);
 	  }
 	  else {
@@ -407,7 +420,9 @@ class nx {
 	$uri = "$endpoint/$service" . $service_method;
 
 	try {
-	  $request = Request::$http_method($uri)
+	  $this->container['request_method'] = $http_method;
+	  $this->container['request_uri'] = $uri;
+	  $request = $this->container['request']
 		->sendsJson()
 		->expectsJson()
 		->addHeader('Cookie', $this->merchant_login['session'])
@@ -519,9 +534,10 @@ class nx {
   public function scan_dados_folder($subfolder_name = 'produto', $prime_id_field_name = 'product_id', $secondary_id_field_names = array('sku', 'cod_produto_erp')) {
 	$dados = $this->folders['dados'];
 	$item_data_folder = "$dados/$subfolder_name";
+	$this->container['scan_folder_path'] = $item_data_folder;
 
 	try{
-	  $files = new FilesystemIterator($item_data_folder);
+	  $files = $this->container['scan_folder'];
 	}
 	catch(Exception $e) {
 	  // @TODO: Handle exceptions.
@@ -694,14 +710,16 @@ class nx {
 	}
 
 	$attempts = 1;
-
 	if (isset($item_data['-sincronizacao-']['tentativas'])) {
 	  $attempts += $item_data['-sincronizacao-']['tentativas'];
 	}
 
+	$date_time = $this->container['date_time']
+	  ->format("Y-m-d H:i:s");
+
 	$item_data['-sincronizacao-'] = array(
 	  'tentativas' => $attempts,
-	  'hora_ultima_tentativa' => date("Y-m-d H:i:s"),
+	  'hora_ultima_tentativa' => $date_time,
 	  'ultima_msg' => $msg,
 	);
   }
@@ -881,7 +899,7 @@ class nx {
 	$item = json_decode($this->response_body_json, true);
 
 	try {
-	  $writer = new Ini();
+	  $writer = $this->container['ini_writer'];
 	  $writer->toFile($file_full_path, (array) $item);
 
 	  print_r($item);
