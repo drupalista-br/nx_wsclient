@@ -29,7 +29,7 @@ class nx {
    *   Whether or not this is a dev machine which has a local webservices
    *   server.
    */
-  public function __construct($is_dev = FALSE) {
+  public function __construct() {
 	// External dependencies container.
 	$this->bootstrap_container();
   }
@@ -37,7 +37,7 @@ class nx {
   /**
    * Bootstraps the app's essential configurations.
    */
-  public function bootstrap() {
+  public function bootstrap($is_dev = FALSE) {
 	// Defines this app's root folder.
 	$this->bootstrap_root_folder();
 	// Loads the config.ini and do basic validation on it.
@@ -542,19 +542,13 @@ class nx {
    * @param Array $secondary_id_field_names
    *   Field names that, apart from the prime id field name, also hold an
    *   unique identification for sorting out a single item.
-   * 
    */
   public function scan_dados_folder($subfolder_name = 'produto', $prime_id_field_name = 'product_id', $secondary_id_field_names = array('sku', 'cod_produto_erp')) {
 	$dados = $this->folders['dados'];
 	$item_data_folder = "$dados/$subfolder_name";
 	$this->container['scan_folder_path'] = $item_data_folder;
 
-	try{
-	  $files = $this->container['scan_folder'];
-	}
-	catch(Exception $e) {
-	  // @TODO: Handle exceptions.
-	}
+	$files = $this->container['scan_folder'];
 
 	$result = array();
 	foreach ($files as $file_object) {
