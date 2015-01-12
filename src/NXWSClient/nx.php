@@ -10,7 +10,7 @@ use Exception;
 
 class nx {
   // Holds external dependencies.
-  public $container;
+  private $container;
 
   private $root_folder,
 		  $config = array(),
