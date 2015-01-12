@@ -114,8 +114,8 @@ class NxTest extends \PHPUnit_Framework_TestCase {
 	  throw new \Exception('You must send a value for memberName. That is the name of the method or property.');
 	}
 
-	$property_action = (isset($settings['property_action'])) ? $settings['property_action'] : null;
-	$property_newValue = (isset($settings['property_newValue'])) ? $settings['property_newValue'] : null;
+	$method_args = (isset($method_args)) ? $method_args : array();
+	$property_newValue = (isset($property_newValue)) ? $property_newValue : '';
 
 	switch($type) {
 	  case 'method':
@@ -131,9 +131,9 @@ class NxTest extends \PHPUnit_Framework_TestCase {
 		$unlock($obj, $memberName, $method_args);
 	  break;
 	  case 'property':
-		if (empty($property_action) ||
-			$property_action != 'return' ||
-			$property_action != 'set') {
+		if (empty($property_action) &&
+			($property_action != 'return' ||
+			$property_action != 'set')) {
 		  throw new \Exception('You must send a value for property_action. Expects either return or set.');
 		}
 
