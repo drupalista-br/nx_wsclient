@@ -105,7 +105,14 @@ class NxTestCase extends PHPUnit_Framework_TestCase {
 		};
 	
 		$unlock = \Closure::bind($unlock, null, $obj);
-		$obj = $unlock($obj, $memberName, $property_action, $property_newValue);
+		switch($property_action) {
+		  case 'return':
+			$obj = $unlock($obj, $memberName, $property_action, $property_newValue);
+		  break;
+		  case 'set':
+			$unlock($obj, $memberName, $property_action, $property_newValue);
+		  break;
+		}
 	  break;
 	}
 	$this->unlockObj = $obj;

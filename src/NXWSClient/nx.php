@@ -24,10 +24,6 @@ class nx {
 
   /**
    * Initial Constructor.
-   *
-   * @param Bool $is_dev
-   *   Whether or not this is a dev machine which has a local webservices
-   *   server.
    */
   public function __construct() {
 	// External dependencies container.
@@ -36,6 +32,10 @@ class nx {
 
   /**
    * Bootstraps the app's essential configurations.
+   * 
+   * @param Bool $is_dev
+   *   Whether or not this is a dev machine which has a local webservices
+   *   server.
    */
   public function bootstrap($is_dev = FALSE) {
 	// Defines this app's root folder.
@@ -158,7 +158,7 @@ class nx {
   }
 
   /**
-   * Does futher validation on the contents of config.ini.
+   * Does further validation on the contents of config.ini.
    */
   private function bootstrap_validate_config() {
 	$config = $this->config;
