@@ -91,10 +91,7 @@ class NxTest extends NxTestCase {
 	$this->unlockSetMethod('bootstrap_config');
 	$this->unlock();
 
-	// Keep our partially bootstraped object for later user.
-	$nx = $this->unlockObj;
-
-	// Swap $this->unlock->config['tmp'] and $this->unlock->config['tmp']
+	// Swap $this->unlock->config['tmp'] and $this->unlock->config['dados']
 	$this->unlockSetProperty('config');
 	$this->unlockSetPropertyAction('set');
 	$config = array(
@@ -106,6 +103,9 @@ class NxTest extends NxTestCase {
 	$this->unlockSetPropertyNewValue($config);
 	$this->unlock();
 
+	// Keep our partially bootstraped object for later user.
+	$nx = $this->unlockObj;
+
 	$this->unlockSetMethod('bootstrap_folders');
 	$this->unlock();
 
@@ -115,7 +115,6 @@ class NxTest extends NxTestCase {
 
 	$folders = $this->unlockObj;
 
-	//print_r($folders);
 	$tmp = $folders['tmp'];
 	$dados = $folders['dados'];
 
@@ -140,5 +139,34 @@ class NxTest extends NxTestCase {
 	$this->unlock();
 
 	$this->expectOutputString("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL);
+  }
+
+  function testFoldersPropertyValuesGetPartiallyReplacedWithTheRootFolder() {
+	$this->unlockObj = new nx();
+	$this->unlockSetProperty('root_folder');
+	$this->unlockSetPropertyAction('set');
+	$this->unlockSetPropertyNewValue(vfsStream::url('home'));
+	$this->unlock();
+
+	$pathinfo = pathinfo(__DIR__);
+	$root_folder = dirname(dirname($pathinfo['dirname']));
+	copy("$root_folder/config.ini", vfsStream::url('home/config.ini'));
+
+	$this->unlockSetMethod('bootstrap_config');
+	$this->unlock();
+
+	$this->unlockSetMethod('bootstrap_folders');
+	$this->unlock();
+
+	$this->unlockSetProperty('folders');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+
+	$folders = $this->unlockObj;
+	$tmp = $folders['tmp'];
+	$dados = $folders['dados'];
+
+	$this->assertTrue($tmp == vfsStream::url('home/tmp'));
+	$this->assertTrue($dados == vfsStream::url('home/dados'));
   }
 }
