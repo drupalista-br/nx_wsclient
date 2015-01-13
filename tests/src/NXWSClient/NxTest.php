@@ -13,8 +13,6 @@ $root_folder = dirname(dirname($pathinfo['dirname']));
 require_once "$root_folder/vendor/autoload.php";
 
 class NxTest extends NxTestCase {
-  public $unlockObjSettings = array(),
-		 $unlockObj;
 
   function testBootstrapConfigMethodConfigIniFileDoesNotExist() {
 	$this->setExpectedException('\Exception');
@@ -82,6 +80,12 @@ class NxTest extends NxTestCase {
   }
   
   function testBootstrapFoldersMethod() {
-	//print_r(get_class_methods($this));
+	$this->unlockObj = new nx();
+	$this->unlockSetMethod('bootstrap_root_folder');
+	$this->unlock();
+
+	$this->unlockSetMethod('bootstrap_config');
+	$this->unlock();
+	
   }
 }

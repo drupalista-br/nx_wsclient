@@ -5,6 +5,9 @@ use PHPUnit_Framework_TestCase;
 use Exception;
 
 class NxTestCase extends PHPUnit_Framework_TestCase {
+  public $unlockObjSettings = array(),
+		 $unlockObj;
+
   public function unlockObj($obj) {
 	$this->unlockObj = $obj;
   }
