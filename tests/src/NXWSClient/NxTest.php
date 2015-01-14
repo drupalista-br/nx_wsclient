@@ -96,8 +96,8 @@ class NxTest extends NxTestCase {
 	$this->unlockSetPropertyAction('set');
 	$config = array(
 	  'pastas' => array(
-		'tmp' => vfsStream::url('home/tmp'),
-		'dados' => vfsStream::url('home/dados'),
+		'tmp' => vfsStream::url('home/test/tmp'),
+		'dados' => vfsStream::url('home/test/dados'),
 	  ),
 	);
 	$this->unlockSetPropertyNewValue($config);
@@ -142,6 +142,114 @@ class NxTest extends NxTestCase {
   }
 
   function testFoldersPropertyValuesGetPartiallyReplacedWithTheRootFolder() {
+	$this->VfsBootstrapFolders();
+
+	$this->unlockSetProperty('folders');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+
+	$folders = $this->unlockObj;
+	$tmp = $folders['tmp'];
+	$dados = $folders['dados'];
+
+	$this->assertTrue($tmp == vfsStream::url('home/tmp'));
+	$this->assertTrue($dados == vfsStream::url('home/dados'));
+  }
+
+  function testVfsBootstrapEndpointShouldThrowException() {
+	$this->setExpectedException('\Exception');
+	$this->VfsBootstrapEndpoint(FALSE, TRUE);
+  }
+
+  function testVfsBootstrapEndpointShouldThrowExceptionForDevEnvironment() {
+	$this->setExpectedException('\Exception');
+	$this->VfsBootstrapEndpoint(TRUE, TRUE);
+  }
+
+  function testVfsBootstrapEndpointIsADevEndPoint() {
+	$this->VfsBootstrapEndpoint();
+	$nx = $this->unlockObj;
+
+	$this->unlockSetProperty('config');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	$dev_endpoint = $this->unlockObj['endpoint']['dev'];
+
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('endpoint');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	$set_endpoint = $this->unlockObj;
+
+	$this->assertTrue($dev_endpoint == $set_endpoint);
+	$this->assertTrue('http://loja.nortaox.local/api' == $set_endpoint);
+  }
+
+  function testVfsBootstrapEndpointIsAProductionEndPoint() {
+	$this->VfsBootstrapEndpoint(FALSE);
+	$nx = $this->unlockObj;
+
+	$this->unlockSetProperty('config');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	$producao_endpoint = $this->unlockObj['endpoint']['producao'];
+
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('endpoint');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	$set_endpoint = $this->unlockObj;
+
+	$this->assertTrue($producao_endpoint == $set_endpoint);
+	$this->assertTrue('https://loja.nortaox.com/api' == $set_endpoint);
+  }
+
+  function testVfsBootstrapEndpointIsASandboxEndPoint() {
+	$this->VfsBootstrapFolders();
+	$nx = $this->unlockObj;
+
+	// Get current config property.
+	$this->unlockSetProperty('config');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	$config = $this->unlockObj;
+
+	$sandbox_endpoint = $config['endpoint']['sandbox'];
+
+	// Change config ambiente.
+	$config['ambiente'] = 'sandbox';
+
+	// Set the changed config back into $nx.
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('config');
+	$this->unlockSetPropertyAction('set');
+	$this->unlockSetPropertyNewValue($config);
+	$this->unlock();
+
+	$this->unlockSetMethod('bootstrap_log_file');
+	$this->unlock();
+
+	$this->unlockSetMethod('bootstrap_validate_config');
+	$this->unlock();
+
+	$this->unlockSetMethod('bootstrap_endpoint');
+	$this->unlockSetMethodArgs(array(FALSE));
+	$this->unlock();
+
+	$this->unlockSetProperty('endpoint');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	$set_endpoint = $this->unlockObj;
+
+	$this->assertTrue($sandbox_endpoint == $set_endpoint);
+	$this->assertTrue('http://loja.nortaoxsandbox.tk/api' == $set_endpoint);
+  }
+
+  /**
+   * Sets a vfsStream folder for root_folder and bootstraps upto
+   * bootstrap_folders();
+   */
+  public function VfsBootstrapFolders() {
 	$this->unlockObj = new nx();
 	$this->unlockSetProperty('root_folder');
 	$this->unlockSetPropertyAction('set');
@@ -157,16 +265,41 @@ class NxTest extends NxTestCase {
 
 	$this->unlockSetMethod('bootstrap_folders');
 	$this->unlock();
+  }
 
-	$this->unlockSetProperty('folders');
-	$this->unlockSetPropertyAction('return');
+  /**
+   * Sets a vfsStream folder for root_folder and bootstraps upto
+   * bootstrap_endpoint();
+   */
+  public function VfsBootstrapEndpoint($is_dev = TRUE, $fail_endpoint = FALSE) {
+	$this->VfsBootstrapFolders();
+
+	$this->unlockSetMethod('bootstrap_log_file');
 	$this->unlock();
 
-	$folders = $this->unlockObj;
-	$tmp = $folders['tmp'];
-	$dados = $folders['dados'];
+	$this->unlockSetMethod('bootstrap_validate_config');
+	$this->unlock();
 
-	$this->assertTrue($tmp == vfsStream::url('home/tmp'));
-	$this->assertTrue($dados == vfsStream::url('home/dados'));
+	if ($fail_endpoint) {
+	  $this->unlockSetProperty('config');
+	  $this->unlockSetPropertyAction('set');
+	  $this->unlockSetPropertyNewValue(array('ambiente' => 'invalid value'));
+	  $this->unlock();
+	}
+
+	$this->unlockSetMethod('bootstrap_endpoint');
+	$this->unlockSetMethodArgs(array($is_dev));
+	$this->unlock();
   }
+  
+  /**
+   * Sets a vfsStream folder for root_folder and bootstraps upto
+   * bootstrap_merchant_login();
+   */
+  public function VfsBootstrapMerchantLogin() {
+	$this->VfsBootstrapEndpoint();
+	$this->unlockSetMethod('bootstrap_merchant_login');
+	$this->unlock();
+  }
+
 }

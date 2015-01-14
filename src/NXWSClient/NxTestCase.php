@@ -60,11 +60,11 @@ class NxTestCase extends PHPUnit_Framework_TestCase {
 	}
 
 	if (empty($type)) {
-	  throw new \Exception('You must send a value for type. Expects either method or property.');
+	  throw new Exception('You must send a value for type. Expects either method or property.');
 	}
 
 	if (empty($memberName)) {
-	  throw new \Exception('You must send a value for memberName. That is the name of the method or property.');
+	  throw new Exception('You must send a value for memberName. That is the name of the method or property.');
 	}
 
 	$method_args = (isset($method_args)) ? $method_args : array();
@@ -72,12 +72,17 @@ class NxTestCase extends PHPUnit_Framework_TestCase {
 
 	switch($type) {
 	  case 'method':
+		if (is_callable(array($obj, $memberName))) {
+		  throw new Exception("$memberName is a public method. You can call it directly.");
+		}
+
 		$unlock = function(&$obj, $memberName, $method_args) {
 		  if (!empty($method_args)) {
 			call_user_func_array(array($obj, $memberName), $method_args);
 		  }
-
-		  $obj->{$memberName}();
+		  else {
+			$obj->{$memberName}();
+		  }
 		};
 
 		$unlock = \Closure::bind($unlock, null, $obj);
@@ -87,7 +92,7 @@ class NxTestCase extends PHPUnit_Framework_TestCase {
 		if (empty($property_action) &&
 			($property_action != 'return' ||
 			$property_action != 'set')) {
-		  throw new \Exception('You must send a value for property_action. Expects either return or set.');
+		  throw new Exception('You must send a value for property_action. Expects either return or set.');
 		}
 
 		$unlock = function(&$obj, $memberName, $property_action, $property_newValue) {
@@ -97,7 +102,7 @@ class NxTestCase extends PHPUnit_Framework_TestCase {
 			break;
 			case 'set':
 			  if (empty($property_newValue)) {
-				throw new \Exception('You must send a value for property_newValue');
+				throw new Exception('You must send a value for property_newValue');
 			  }
 			  $obj->{$memberName} = $property_newValue;
 			break;

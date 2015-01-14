@@ -80,12 +80,6 @@ class nx {
 	  return Request::$method($uri);
 	};
 
-	// File get cont.
-	$container['ini_reader_file_path'] = '';
-	$container['ini_reader'] = function($c) {
-	  return parse_ini_file($c['ini_reader_file_path'], TRUE);
-	};
-
 	// Ini file writer.
 	$container['ini_writer'] = function($c) {
 	  return new Ini();
@@ -121,8 +115,7 @@ class nx {
 	  throw new Exception($msg);
 	}
 
-	$this->container['ini_reader_file_path'] = $config_file;
-	$this->config = $config = $this->container['ini_reader'];
+	$this->config = $config = parse_ini_file($config_file, TRUE);;
 
 	if (!$config) {
 	  // Cant open config.ini.
@@ -206,10 +199,11 @@ class nx {
    */
   private function bootstrap_endpoint($is_dev) {
 	$environment = ($is_dev) ? 'dev' : $this->config['ambiente'];
+	$config = $this->config;
 
 	if (!isset($config['endpoint'][$environment])) {
 	  $eol = PHP_EOL;
-	  print $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
+	  $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
 	  $this->log($print);
 	  throw new Exception($print);
 	}
@@ -274,7 +268,7 @@ class nx {
    *   Whether or not  the request was successful ( code 200 ).
    *
    */
-  private function response_code(Request $response, $uri) {
+  private function response_code(\Httpful\Response $response, $uri) {
 	$this->response_code = $code = $response->code;
 
 	if ($code != 200) {
@@ -354,8 +348,7 @@ class nx {
 	$session_file = $this->folders['tmp'] . "/.session";
 
 	if (file_exists($session_file) && !$reset) {
-	  $this->container['ini_reader_file_path'] = $session_file;
-	  $session = $this->container['ini_reader'];
+	  $session = parse_ini_file($session_file, TRUE);
 
 	  $this->merchant_login['session'] = $session['session'];
 	  $this->merchant_login['token'] = $session['token'];
@@ -390,22 +383,23 @@ class nx {
 
 		$writer = $this->container['ini_writer'];
 		$writer->toFile($session_file, $session);
+
+		if ($reset) {
+		  print "Novo token foi salvo com sucesso." . PHP_EOL;
+		}
+
+		return TRUE;
 	  }
 	  else {
 		$http_code = $this->response_code;
 		print $print = "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
-		print $this->response_error_msg . PHP_EOL;
 
 		$print .= $this->response_error_msg;
 		$this->log($print);
+		return FALSE;
 	  }
-
-	  if ($reset && $response_ok) {
-		print "Novo token foi salvo com sucesso." . PHP_EOL;
-	  }
-
-	  return $response_ok;
 	}
+	return FALSE;
   }
 
   /**
@@ -572,8 +566,7 @@ class nx {
 		  break;
 		}
 
-		$this->container['ini_reader_file_path'] = $file_full_path;
-		$item_file_data = $this->container['ini_reader'];
+		$item_file_data = parse_ini_file($file_full_path, TRUE);
 		if ($item_file_data) {
 		  $first_key = current(array_keys($item_file_data));
   
