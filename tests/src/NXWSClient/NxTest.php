@@ -204,6 +204,76 @@ class NxTest extends NxTestCase {
 	$this->assertTrue('https://loja.nortaox.com/api' == $set_endpoint);
   }
 
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigAmbienteIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['ambiente'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigEndpointForSandboxIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['endpoint']['sandbox'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigEndpointForProducaoIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['endpoint']['producao'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigEndpointForDevIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['endpoint']['dev'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+ 
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigServicosForLoginIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['servicos']['login'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigServicosForProdutoIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['servicos']['produto'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigServicosForPedidoIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['servicos']['pedido'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigServicosForCidadesIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['servicos']['cidades'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigCredenciaisForUsernameIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['credenciais']['username'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
+  function testBootstrapValidateConfigShouldThrowExceptionWhenConfigCredenciaisForPasswordIsEmpty() {
+	$this->setExpectedException('\Exception');
+
+	$config['credenciais']['password'] = '';
+	$this->bootstrap_validade_config($config);
+  }
+
   function testVfsBootstrapEndpointIsASandboxEndPoint() {
 	$this->VfsBootstrapFolders();
 	$nx = $this->unlockObj;
@@ -243,6 +313,98 @@ class NxTest extends NxTestCase {
 
 	$this->assertTrue($sandbox_endpoint == $set_endpoint);
 	$this->assertTrue('http://loja.nortaoxsandbox.tk/api' == $set_endpoint);
+  }
+
+  function testLogMethod() {
+	$output = "Endpoint http://loja.nortaox.local/api esta acessivel." . PHP_EOL;
+	$output .= "As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL;
+	$this->expectOutPutString($output);
+
+	$pathinfo = pathinfo(__DIR__);
+	$root_folder = dirname(dirname($pathinfo['dirname']));
+
+	$date = new \DateTime();
+	$date_gis = $date->format('G:i:s');
+	$date_ymd = "logtest";
+	$log_file = "$root_folder/tmp/logs/$date_ymd.log";
+
+	$this->assertFalse(file_exists($log_file));
+
+	$nx = new nx();	
+	$nx->container['date_gis'] = $date_gis;
+	$nx->container['date_time_gis'] = function($c) {
+	  return $c['date_gis'];
+	};
+
+	$nx->container['date_ymd'] = $date_ymd;
+	$nx->container['date_time_ymd'] = function($c) {
+	  return $c['date_ymd'];
+	};
+	$nx->check(TRUE);
+
+	$msg_1 = "1. PHPUnit." . PHP_EOL;
+	$msg_2 = "2. PHPUnit." . PHP_EOL;
+
+	$this->unlockObj = $nx;
+	$this->unlockSetMethod('log');
+	$this->unlockSetMethodArgs(array($msg_1));
+	$this->unlock();
+
+	$this->unlockObj = $nx;
+	$this->unlockSetMethod('log');
+	$this->unlockSetMethodArgs(array($msg_2));
+	$this->unlock();
+
+	$file_content_prediction = "----$date_gis----" . PHP_EOL;
+	$file_content_prediction .= $msg_1;
+	$file_content_prediction .= "----$date_gis----" . PHP_EOL;
+	$file_content_prediction .= $msg_2;
+
+	$file_content = file_get_contents($log_file);
+
+	$this->assertTrue(file_exists($log_file));
+	unlink($log_file);
+  }
+
+  function testBootstrapMerchantLoginRequestNewCredentialsToTheWebservice() {
+	$pathinfo = pathinfo(__DIR__);
+	$root_folder = dirname(dirname($pathinfo['dirname']));
+	$session_file = "$root_folder/tmp/.session";
+
+	$this->expectOutPutString("Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL);
+
+	$nx = new nx();
+
+	if (file_exists($session_file)) {
+	  $session = $nx->container['ini_reader']
+		->fromFile($session_file);
+
+	  unlink($session_file);
+	}
+	else {
+	  $nx->bootstrap(TRUE);
+	  $session = $nx->container['ini_reader']
+		->fromFile($session_file);
+
+	  unlink($session_file);
+	}
+
+	$nx = new nx();
+	$login = $nx->bootstrap(TRUE);
+
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('merchant_login');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+
+	$session_new = $this->unlockObj;
+
+	$this->assertTrue($session['session'] != $session_new['session']);
+	$this->assertTrue($session['token'] != $session_new['token']);
+  }
+
+  function testBootstrapMerchantLoginReadCredentialsFromSessionFile() {
+	
   }
 
   /**
@@ -291,15 +453,35 @@ class NxTest extends NxTestCase {
 	$this->unlockSetMethodArgs(array($is_dev));
 	$this->unlock();
   }
-  
+
   /**
-   * Sets a vfsStream folder for root_folder and bootstraps upto
-   * bootstrap_merchant_login();
+   * Runs $nx->bootstrap_validade_config()
    */
-  public function VfsBootstrapMerchantLogin() {
-	$this->VfsBootstrapEndpoint();
-	$this->unlockSetMethod('bootstrap_merchant_login');
+  public function bootstrap_validade_config($config_value = array()) {
+	$this->VfsBootstrapFolders();
+	$nx = $this->unlockObj;
+
+	// Get current config property.
+	$this->unlockSetProperty('config');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	$config = $this->unlockObj;
+
+	foreach ($config_value as $key => $value) {
+	  $config[$key] = $value;  
+	}
+
+	// Set the changed config back into $nx.
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('config');
+	$this->unlockSetPropertyAction('set');
+	$this->unlockSetPropertyNewValue($config);
+	$this->unlock();
+
+	$this->unlockSetMethod('bootstrap_log_file');
+	$this->unlock();
+
+	$this->unlockSetMethod('bootstrap_validate_config');
 	$this->unlock();
   }
-
 }

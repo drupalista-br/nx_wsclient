@@ -1,19 +1,21 @@
 <?php
 namespace NXWSClient;
 
-use Httpful\Request;
-use Zend\Config\Writer\Ini;
-use Pimple\Container;
-use DateTime;
-use FilesystemIterator;
-use Exception;
+use Httpful\Request,
+    Zend\Config\Writer\Ini as IniWriter,
+	Zend\Config\Reader\Ini as IniReader,
+	Pimple\Container,
+	DateTime,
+	FilesystemIterator,
+	Exception;
 
 class nx {
   // Holds external dependencies.
-  private $container;
+  public $container;
 
   private $root_folder,
 		  $config = array(),
+		  $config_file,
 		  $folders = array(),
 		  $log_file,
 		  $endpoint,
@@ -64,8 +66,17 @@ class nx {
 	$container = new Container();
 
 	// Date and Time.
-	$container['date_time'] = function($c) {
-	  return new DateTime();
+	$container['date_time_ymd'] = function($c) {
+	  $date = new DateTime();
+	  return $date->format("Y-m-d");
+	};
+	$container['date_time_gis'] = function($c) {
+	  $date = new DateTime();
+	  return $date->format("G:i:s");
+	};
+	$container['date_time_ymd-his'] = function($c) {
+	  $date = new DateTime();
+	  return $date->format("Y-m-d H:i:s");
 	};
 
 	// Http requests.
@@ -81,8 +92,13 @@ class nx {
 	};
 
 	// Ini file writer.
+	$container['ini_reader'] = function($c) {
+	  return new IniReader();
+	};
+
+	// Ini file writer.
 	$container['ini_writer'] = function($c) {
-	  return new Ini();
+	  return new IniWriter();
 	};
 
 	// Directory and file listing.
@@ -107,7 +123,7 @@ class nx {
    */
   private function bootstrap_config() {
 	$root_folder = $this->root_folder;
-	$config_file = "$root_folder/config.ini";
+	$this->config_file = $config_file = "$root_folder/config.ini";
 
 	if (!file_exists($config_file)) {
 	  $this->response_code = 500;
@@ -144,8 +160,7 @@ class nx {
    * errors and webservices failures for the current instance.
    */
   private function bootstrap_log_file() {
-	$current_date = $this->container['date_time']
-	  ->format("Y-m-d");
+	$current_date = $this->container['date_time_ymd'];
 
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
   }
@@ -155,6 +170,7 @@ class nx {
    */
   private function bootstrap_validate_config() {
 	$config = $this->config;
+	$config_file = $this->config_file;
 
 	if (empty($config['ambiente'])) {
 	  $this->response_code = 500;
@@ -222,8 +238,7 @@ class nx {
 	  $log_file = $this->log_file;
 
 	  $this->response_code = 500;
-	  $time = $this->container['date_time']
-	    ->format('G:i:s');
+	  $time = $this->container['date_time_gis'];
 
 	  $log = "----$time----" . PHP_EOL;
 	  $log .= $msg;
@@ -237,7 +252,14 @@ class nx {
    * Sends a test request to the endpoint.
    * Checks if dados and tmp folders are reachable.
    */
-  public function check() {
+  public function check($is_dev = FALSE) {
+	$this->bootstrap_root_folder();
+	$this->bootstrap_config();
+	$this->bootstrap_folders();
+	$this->bootstrap_log_file();
+	$this->bootstrap_validate_config();
+	$this->bootstrap_endpoint($is_dev);
+
 	$uri = $this->endpoint;
 
 	$this->container['request_method'] = 'get';
@@ -345,33 +367,41 @@ class nx {
    *   Whether or not the login was successful.
    */
   private function bootstrap_merchant_login($reset = FALSE) {
+	$username = $this->config['credenciais']['username'];
 	$session_file = $this->folders['tmp'] . "/.session";
 
 	if (file_exists($session_file) && !$reset) {
-	  $session = parse_ini_file($session_file, TRUE);
+	  //$session = parse_ini_file($session_file, TRUE);
+	  $session = $this->container['ini_reader']
+		->fromFile($session_file);
 
 	  $this->merchant_login['session'] = $session['session'];
 	  $this->merchant_login['token'] = $session['token'];
 
-	  return TRUE;
+	  print "Credenciais para o usuario $username foram carregadas a partir de arquivo de sessao." . PHP_EOL;
 	}
 	else {
 	  // Request merchant authentication.
 	  $endpoint = $this->endpoint;
 	  $service = $this->config['servicos']['login'];
-	  $username = $this->config['credenciais']['username'];
 	  $password = $this->config['credenciais']['password'];
 
 	  $uri = "$endpoint/$service";
 
-	  $this->container['request_method'] = 'post';
-	  $this->container['request_uri'] = $uri;
-	  $request = $this->container['request']
-		->body("username=$username&password=$password")
-		->expectsJson()
-		->send();
-
-	  $response_ok = $this->response_code($request, $uri);
+	  try{
+		$this->container['request_method'] = 'post';
+		$this->container['request_uri'] = $uri;
+		$request = $this->container['request']
+		  ->body("username=$username&password=$password")
+		  ->expectsJson()
+		  ->send();
+		$response_ok = $this->response_code($request, $uri);
+	  }
+	  catch(Exception $e) {
+		$this->response_error_msg = $e->getMessage();
+		$this->response_code = 500;
+		$response_ok = FALSE;
+	  }
 
 	  if ($response_ok) {
 		$sessid = $request->body->sessid;
@@ -384,11 +414,10 @@ class nx {
 		$writer = $this->container['ini_writer'];
 		$writer->toFile($session_file, $session);
 
+		print "Login do usuario $username foi bem sucessido." . PHP_EOL;
 		if ($reset) {
 		  print "Novo token foi salvo com sucesso." . PHP_EOL;
 		}
-
-		return TRUE;
 	  }
 	  else {
 		$http_code = $this->response_code;
@@ -396,10 +425,8 @@ class nx {
 
 		$print .= $this->response_error_msg;
 		$this->log($print);
-		return FALSE;
 	  }
 	}
-	return FALSE;
   }
 
   /**
@@ -715,8 +742,7 @@ class nx {
 	  $attempts += $item_data['-sincronizacao-']['tentativas'];
 	}
 
-	$date_time = $this->container['date_time']
-	  ->format("Y-m-d H:i:s");
+	$date_time = $this->container['date_time_ymd-his'];
 
 	$item_data['-sincronizacao-'] = array(
 	  'tentativas' => $attempts,
