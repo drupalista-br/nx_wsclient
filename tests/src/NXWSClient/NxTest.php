@@ -1,11 +1,12 @@
 <?php
 namespace NXWSClient\Test;
 
-use NXWSClient\nx;
-use NXWSClient\NxTestCase;
-use Httpful\Request;
-use org\bovigo\vfs\vfsStream;
-use Pimple\Container;
+use NXWSClient\nx,
+	NXWSClient\NxTestCase,
+	Httpful\Request,
+	org\bovigo\vfs\vfsStream,
+	Pimple\Container,
+	Zend\Config\Reader\Ini as IniReader;
 
 $pathinfo = pathinfo(__DIR__);
 $root_folder = dirname(dirname($pathinfo['dirname']));
@@ -13,12 +14,16 @@ $root_folder = dirname(dirname($pathinfo['dirname']));
 require_once "$root_folder/vendor/autoload.php";
 
 class NxTest extends NxTestCase {
-
-  public $home_folder;
+  public $root_folder;
   
   public function setUp() {
 	parent::setUp();
-	$this->home_folder = vfsStream::setup('home');
+
+	$pathinfo = pathinfo(__DIR__);
+	$root_folder = dirname(dirname($pathinfo['dirname']));
+	$this->root_folder = $root_folder;
+
+	vfsStream::setup('home');
   }
 
   function testBootstrapConfigMethodConfigIniFileDoesNotExist() {
@@ -320,8 +325,7 @@ class NxTest extends NxTestCase {
 	$output .= "As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL;
 	$this->expectOutPutString($output);
 
-	$pathinfo = pathinfo(__DIR__);
-	$root_folder = dirname(dirname($pathinfo['dirname']));
+	$root_folder = $this->root_folder;
 
 	$date = new \DateTime();
 	$date_gis = $date->format('G:i:s');
@@ -367,21 +371,23 @@ class NxTest extends NxTestCase {
   }
 
   function testBootstrapMerchantLoginRequestNewCredentialsToTheWebservice() {
-	$pathinfo = pathinfo(__DIR__);
-	$root_folder = dirname(dirname($pathinfo['dirname']));
+	$root_folder = $this->root_folder;
 	$session_file = "$root_folder/tmp/.session";
-
-	$this->expectOutPutString("Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL);
 
 	$nx = new nx();
 
 	if (file_exists($session_file)) {
+	  $this->expectOutPutString("Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL);
 	  $session = $nx->container['ini_reader']
 		->fromFile($session_file);
 
 	  unlink($session_file);
 	}
 	else {
+	  $output = "Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL;
+	  $output .= "Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL;
+	  $this->expectOutPutString($output);
+
 	  $nx->bootstrap(TRUE);
 	  $session = $nx->container['ini_reader']
 		->fromFile($session_file);
@@ -404,9 +410,67 @@ class NxTest extends NxTestCase {
   }
 
   function testBootstrapMerchantLoginReadCredentialsFromSessionFile() {
-	
+	$root_folder = $this->root_folder;
+	$session_file = "$root_folder/tmp/.session";
+
+	$nx = new nx();
+
+	if (file_exists($session_file)) {
+	  $session = $nx->container['ini_reader']
+		->fromFile($session_file);
+	  $this->expectOutPutString("Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL);
+	}
+	else {
+	  $nx->bootstrap(TRUE);
+	  $session = $nx->container['ini_reader']
+		->fromFile($session_file);
+
+	  $output = "Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL;
+	  $output .= "Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL;
+	  $this->expectOutPutString($output);
+	}
+
+	$nx = new nx();
+	$login = $nx->bootstrap(TRUE);
+
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('merchant_login');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+
+	$session_new = $this->unlockObj;
+
+	$this->assertTrue($session['session'] == $session_new['session']);
+	$this->assertTrue($session['token'] == $session_new['token']);
   }
 
+  function testGetCitiesMethod() {
+	$root_folder = $this->root_folder;
+
+	if (file_exists("$root_folder/dados/consulta/cidades.txt")) {
+	  unlink("$root_folder/dados/consulta/cidades.txt");
+	}
+
+	$this->assertFalse(file_exists("$root_folder/dados/consulta/cidades.txt"));
+
+	$output = "Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL .
+			  "Consulta foi salva em $root_folder/dados/consulta/cidades.txt" . PHP_EOL;
+	$this->expectOutPutString($output);
+	
+	$nx = new nx();
+	$nx->bootstrap(TRUE);
+	$nx->get_cities();
+
+	$this->assertTrue(file_exists("$root_folder/dados/consulta/cidades.txt"));
+
+	$reader = new IniReader();
+	$cities = $reader->fromFile("$root_folder/dados/consulta/cidades.txt");
+
+	$this->assertTrue(isset($cities[0]['cod_cidade']));
+	$this->assertTrue(isset($cities[0]['nome']));
+	$this->assertTrue(isset($cities[0]['status']));
+  }
+  
   /**
    * Sets a vfsStream folder for root_folder and bootstraps upto
    * bootstrap_folders();
@@ -418,8 +482,7 @@ class NxTest extends NxTestCase {
 	$this->unlockSetPropertyNewValue(vfsStream::url('home'));
 	$this->unlock();
 
-	$pathinfo = pathinfo(__DIR__);
-	$root_folder = dirname(dirname($pathinfo['dirname']));
+	$root_folder = $this->root_folder;
 	copy("$root_folder/config.ini", vfsStream::url('home/config.ini'));
 
 	$this->unlockSetMethod('bootstrap_config');

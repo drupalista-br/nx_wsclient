@@ -4,6 +4,9 @@ namespace NXWSClient;
 use Httpful\Request,
     Zend\Config\Writer\Ini as IniWriter,
 	Zend\Config\Reader\Ini as IniReader,
+	Zend\Mail\Message,
+	Zend\Mail\Transport\Smtp as SmtpTransport,
+	Zend\Mail\Transport\SmtpOptions,
 	Pimple\Container,
 	DateTime,
 	FilesystemIterator,
@@ -43,16 +46,7 @@ class nx {
 	// Defines this app's root folder.
 	$this->bootstrap_root_folder();
 	// Loads the config.ini and do basic validation on it.
-	$this->bootstrap_config();
-	// Creates dados and tmp folders and their subfolders.
-	$this->bootstrap_folders();
-	// Defines the full path name of a log file which will store eventual
-	// errors and webservices failures for this object instance.
-	$this->bootstrap_log_file();
-	// Does further validation on the contents of config.ini.
-	$this->bootstrap_validate_config();
-	// Defines which endpoint this instance will make use of.
-	$this->bootstrap_endpoint($is_dev);
+	$this->bootstrap_config($is_dev);
 	// Loads the merchant session credentials and token for webservice
 	// request authentication.
 	$this->bootstrap_merchant_login();
@@ -64,6 +58,60 @@ class nx {
    */
   private function bootstrap_container() {
 	$container = new Container();
+
+	$root_folder = pathinfo(__DIR__);
+	$container['root_folder'] = dirname($root_folder['dirname']);
+
+	$container['config_preset'] = array(
+	  'ambiente' => 'producao',
+	  'endpoint' => array(
+		'sandbox' => 'http://loja.nortaoxsandbox.tk/api',
+		'producao' => 'https://loja.nortaox.com/api',
+		'dev' => 'http://loja.nortaox.local/api',
+	  ),
+	  'servicos' => array(
+		'login' => 'user/login',
+		'produto' => 'produto',
+		'pedido' => 'pedido-consultar',
+		'cidades' => 'cidades',
+	  ),
+	  'pastas' => array(
+		'dados' => '%app%/dados',
+		'tmp' => '%app%/tmp',
+	  ),
+	);
+	$container['config'] = function($c) {
+	  $config = $c['config_preset'];
+	  $config_file = $c['root_folder'] . "/config.ini";
+
+	  if (!file_exists($config_file)) {
+		throw new Exception("O arquivo $config_file nao existe." . PHP_EOL);
+	  }
+
+	  $config_file = $c['ini_reader']
+		->fromFile($config_file);
+
+	  $config['ambiente'] = (isset($config_file['ambiente'])) ? $config_file['ambiente'] : $config['ambiente'];
+
+	  if (isset($config_file['pastas']['dados']) && is_dir($config_file['pastas']['dados'])) {
+		$config['pastas']['dados'] = $config_file['pastas']['dados'];
+	  }
+
+	  if (isset($config_file['pastas']['tmp']) && is_dir($config_file['pastas']['tmp'])) {
+		$config['pastas']['tmp'] = $config_file['pastas']['tmp'];
+	  }
+
+	  if (!isset($config_file['servidor_smtp']) ||
+		  !isset($config_file['notificar']) ||
+		  !isset($config_file['credenciais'])) {
+		throw new Exception("Tem algo errado no arquivo de configuracao $config_file." . PHP_EOL);
+	  }
+	  $config['servidor_smtp'] = $config_file['servidor_smtp'];
+	  $config['notificar'] = $config_file['notificar'];
+	  $config['credenciais'] = $config_file['credenciais'];
+
+	  return $config;
+	};
 
 	// Date and Time.
 	$container['date_time_ymd'] = function($c) {
@@ -101,6 +149,42 @@ class nx {
 	  return new IniWriter();
 	};
 
+	// Email.
+	$container['email_host'] = 'smtp.gmail.com';
+	$container['email_domain'] = 'gmail.com';
+	$container['email_port'] = 465;
+	$container['email_message'] = function($c) {
+	  $config = $c['config'];
+
+	  $message = new Message();
+	  $message->addFrom($config['servidor_smtp']['From']);
+
+	  foreach($config['notificar'] as $recipient) {
+		$message->addTo($recipient['email']);
+	  }
+	  return $message;
+	};
+
+	$container['email_transport'] = function($c) {
+	  $config = $c['config'];
+
+	  // Setup SMTP transport using LOGIN authentication
+	  $transport = new SmtpTransport();
+	  $options = new SmtpOptions(array(
+		'name' => $c['email_domain'],
+		'host' => $c['email_host'],
+		'connection_class'  => 'login',
+		'port' => $c['email_port'],
+		'connection_config' => array(
+		  'ssl' => 'ssl',
+		  'username' => $config['servidor_smtp']['Username'],
+		  'password' => $config['servidor_smtp']['Password'],
+		),
+	  ));
+	  $transport->setOptions($options);
+	  return $transport;
+	};
+
 	// Directory and file listing.
 	$container['scan_folder_path'] = '';
 	$container['scan_folder'] = function($c) {
@@ -118,113 +202,43 @@ class nx {
 	$this->root_folder = dirname($root_folder['dirname']);
   }
 
+  function test() {
+	$test = $this->container['config'];
+	print_r($test);
+  }
   /**
    * Load the config.ini and do basic validation on it.
    */
-  private function bootstrap_config() {
-	$root_folder = $this->root_folder;
-	$this->config_file = $config_file = "$root_folder/config.ini";
-
-	if (!file_exists($config_file)) {
-	  $this->response_code = 500;
-	  $this->response_error_msg = $msg = "O arquivo $config_file nao existe." . PHP_EOL;
-	  throw new Exception($msg);
-	}
-
-	$this->config = $config = parse_ini_file($config_file, TRUE);;
-
-	if (!$config) {
-	  // Cant open config.ini.
-	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "Nao foi possivel abrir o arquivo $config_file." . PHP_EOL;
-	  throw new Exception($print);
-	}
-
-	// config.ini must have [pastas] section to start off. Further validation
-	// will be done by bootstrap_validate_config().
-	if (empty($config['pastas'])) {
-	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "A secao [pastas] nao existe ou nao tem atributos definidos. Arquivo $config_file." . PHP_EOL;
-	  throw new Exception($print);
-	}
-
-	if (empty($config['pastas']['dados']) || empty($config['pastas']['tmp'])) {
-	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "Os valores para dados ou tmp nao estao definidos. Arquivo $config_file." . PHP_EOL;
-	  throw new Exception($print);
-	}
-  }
-
-  /**
-   * Defines the full path name of a log file which will store eventual
-   * errors and webservices failures for the current instance.
-   */
-  private function bootstrap_log_file() {
+  private function bootstrap_config($is_dev) {
 	$current_date = $this->container['date_time_ymd'];
 
+	$this->config = $config = $this->container['config'];
+	$this->folders = $config['pastas'];
+	$this->set_folders();
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
-  }
 
-  /**
-   * Does further validation on the contents of config.ini.
-   */
-  private function bootstrap_validate_config() {
-	$config = $this->config;
-	$config_file = $this->config_file;
-
-	if (empty($config['ambiente'])) {
-	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "O valor para ambiente nao esta definido. Arquivo $config_file." . PHP_EOL;
-	  $this->log($print);
-	  throw new Exception($print);
+	if ($is_dev) {
+	  $env = 'dev';
+	}
+	else {
+	  $valid_envs = array('producao', 'sandbox');
+	  $env = $config['ambiente'];
+  
+	  if (!in_array($env, $valid_envs)) {
+		print $print = "O valor $env para ambiente eh invalido." . PHP_EOL;
+		$this->log($print);
+		throw new Exception($print);
+	  }
 	}
 
-	if (empty($config['endpoint']['sandbox']) ||
-		empty($config['endpoint']['producao']) ||
-		empty($config['endpoint']['dev'])) {
-	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "Os valores para producao ou sandbox ou dev nao estao definidos. Arquivo $config_file." . PHP_EOL;
+	$this->endpoint = $config['endpoint'][$env];
+
+	if ($config['credenciais']['username'] == 'Francisco Luz' ||
+		$config['credenciais']['password'] == 'teste') {
+	  print $print = "O username ou a password do usuario lojista nao foram definidas." . PHP_EOL;
 	  $this->log($print);
 	  throw new Exception($print);
-	}
-
-	if (empty($config['servicos']['login']) ||
-		empty($config['servicos']['produto']) ||
-		empty($config['servicos']['pedido']) ||
-		empty($config['servicos']['cidades'])) {
-	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "Os valores para login ou produto ou pedido ou cidades nao estao definidos. Arquivo $config_file." . PHP_EOL;
-	  $this->log($print);
-	  throw new Exception($print);
-	}
-
-	if (empty($config['credenciais']['username']) || empty($config['credenciais']['password'])) {
-	  $this->response_code = 500;
-	  $this->response_error_msg = $print = "Os valores para username ou password nao estao definidos. Arquivo $config_file." . PHP_EOL;
-	  $this->log($print);
-	  throw new Exception($print);
-	}
-  }
-
-  /**
-   * Defines which endpoint this instance will make use of.
-   *
-   * @param Bool $is_dev
-   *   Whether or not this is a dev machine which has a local webservice
-   *   server.
-   */
-  private function bootstrap_endpoint($is_dev) {
-	$environment = ($is_dev) ? 'dev' : $this->config['ambiente'];
-	$config = $this->config;
-
-	if (!isset($config['endpoint'][$environment])) {
-	  $eol = PHP_EOL;
-	  $print = "O arquivo config.ini nao contem a instrucao:$eol [endpoint] $eol $environment = URI$eol";
-	  $this->log($print);
-	  throw new Exception($print);
-	}
-
-	$this->endpoint = $this->config['endpoint'][$environment];
+	}	
   }
 
   /**
@@ -247,18 +261,41 @@ class nx {
 	  file_put_contents($log_file, $log, FILE_APPEND);
 	}
   }
-  
+
+  /**
+   * Sends out email notifications.
+   *
+   * @param String $msg
+   *   The message to be sent.
+   *
+   * @param String $subject
+   *   The email subject.
+   */
+  public function notify($msg, $subject = 'NortaoX | Cliente Webservice') {
+	$message = $this->container['email_message']
+	  ->setSubject($subject)
+	  ->setBody($msg);
+
+	$transport = $this->container['email_transport'];
+
+	try {
+	  $transport->send($message);
+	  print "Email enviado com sucesso." . PHP_EOL;
+	}
+	catch(Exception $e) {
+	  $msg = $e->getMessage();
+	  print $print = "Algo deu errado. $msg" . PHP_EOL;
+	  $this->log($print);
+	}
+  }
+
   /**
    * Sends a test request to the endpoint.
    * Checks if dados and tmp folders are reachable.
    */
   public function check($is_dev = FALSE) {
 	$this->bootstrap_root_folder();
-	$this->bootstrap_config();
-	$this->bootstrap_folders();
-	$this->bootstrap_log_file();
-	$this->bootstrap_validate_config();
-	$this->bootstrap_endpoint($is_dev);
+	$this->bootstrap_config($is_dev);
 
 	$uri = $this->endpoint;
 
@@ -273,51 +310,19 @@ class nx {
 	  print "Endpoint $uri esta acessivel." . PHP_EOL;
 	}
 
-	$this->bootstrap_folders(TRUE);
-  }
-
-  /**
-   * Prints out an error message plus service response when the service
-   * request fails.
-   *
-   * @param Object $response
-   *   The full object response from the webservice.
-   *
-   * @param String $uri
-   *   The service URI which the service has been requested against.
-   *
-   * @return Bool
-   *   Whether or not  the request was successful ( code 200 ).
-   *
-   */
-  private function response_code(\Httpful\Response $response, $uri) {
-	$this->response_code = $code = $response->code;
-
-	if ($code != 200) {
-	  $body = $response->raw_body;
-
-	  print $print = "A chamada ao Endpoint $uri FALHOU. Retornou o Codigo de Status HTTP $code." . PHP_EOL;
-	  if (!empty($body)) {
-		print $print = "O Webservice respondeu o seguinte:" . PHP_EOL;
-		print $print = $body . PHP_EOL;
-	  }
-	  $this->log($print);
-
-	  return FALSE;
-	}
-	return TRUE;
+	$this->set_folders(TRUE);
   }
 
   /**
    * Loads folder's paths from config.ini and creates all the app's subfolders.
    */
-  private function bootstrap_folders($check = FALSE) {
-	foreach($this->config['pastas'] as $folder => $folder_path) {
+  private function set_folders($check = FALSE) {
+	foreach($this->folders as $folder => &$folder_path) {
 	  // Make sure forward slash directory separator is gonna be in place.
 	  $folder_path = str_replace('\\', '/', $folder_path);
 
 	  // Set this app's root path as default for this $folder.
-	  $this->folders[$folder] = $folder_path = str_replace('%app%', $this->root_folder, $folder_path);
+	  $folder_path = str_replace('%app%', $this->root_folder, $folder_path);
 
 	  // Check if folders exist. If not, try to create them.
 	  $error_msgs = FALSE;
@@ -371,7 +376,6 @@ class nx {
 	$session_file = $this->folders['tmp'] . "/.session";
 
 	if (file_exists($session_file) && !$reset) {
-	  //$session = parse_ini_file($session_file, TRUE);
 	  $session = $this->container['ini_reader']
 		->fromFile($session_file);
 
@@ -463,18 +467,51 @@ class nx {
 		->addHeader('X-CSRF-Token', $this->merchant_login['token'])
 		->body($body)
 		->send();
+
+	  $response_ok = $this->response_code($request, $uri);
 	}
 	catch (Exception $e) {
-	  print $e->getMessage();
+	  $this->response_error_msg = $e->getMessage();
+	  $this->response_code = 500;
+	  $response_ok = FALSE;
 	}
 
-	$reponse_ok = $this->response_code($request, $uri);
-
-	if ($reponse_ok) {
+	if ($response_ok) {
 	  $this->response_body_json = $request->raw_body;
 	}
+	return $response_ok;
+  }
 
-	return $reponse_ok;
+  /**
+   * Prints out an error message plus service response when the service
+   * request fails.
+   *
+   * @param Object $response
+   *   The full object response from the webservice.
+   *
+   * @param String $uri
+   *   The service URI which the service has been requested against.
+   *
+   * @return Bool
+   *   Whether or not  the request was successful ( code 200 ).
+   *
+   */
+  private function response_code(\Httpful\Response $response, $uri) {
+	$this->response_code = $code = $response->code;
+
+	if ($code != 200) {
+	  $body = $response->raw_body;
+
+	  print $print = "A chamada ao Endpoint $uri FALHOU. Retornou o Codigo de Status HTTP $code." . PHP_EOL;
+	  if (!empty($body)) {
+		print $print = "O Webservice respondeu o seguinte:" . PHP_EOL;
+		print $print = $body . PHP_EOL;
+	  }
+	  $this->log($print);
+
+	  return FALSE;
+	}
+	return TRUE;
   }
 
   /**
@@ -486,7 +523,7 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function create($service = 'produto') {
+  private function create($service = 'produto') {
 	$body = array(
 	  //'nome' => 'my new product 200',
 	  'preco' => 5068,
@@ -499,7 +536,7 @@ class nx {
 	  'cod_produto_erp' => '998',
 	);
 
-	return $this->request($service, $body, 'post');
+	$this->request($service, $body, 'post');
   }
 
   /**
@@ -511,7 +548,7 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function update($service = 'produto', $service_method = 'atualizar') {
+  private function update($service = 'produto', $service_method = 'atualizar') {
 	$body = array(
 	  //'nome' => 'update test 55',
 	  //'product_id' => 64,
@@ -593,7 +630,8 @@ class nx {
 		  break;
 		}
 
-		$item_file_data = parse_ini_file($file_full_path, TRUE);
+		$item_file_data = $this->container['ini_reader']
+		  ->fromFile($file_full_path);
 		if ($item_file_data) {
 		  $first_key = current(array_keys($item_file_data));
   
@@ -811,11 +849,11 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_pedido_by_number($order_number, $save_result = TRUE) {
+  public function get_pedido_by_number($order_number) {
 	$qs = array('no' => $order_number);
 	$request = $this->retrieve_service_item($qs, 'pedido', '');
 
-	if ($request && $save_result) {
+	if ($request) {
 	  $this->save_retrieved_result("pedido_no_$order_number");
 	}
 
@@ -835,11 +873,11 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_produto_by_product_id($product_id, $save_result = TRUE) {
+  public function get_produto_by_product_id($product_id) {
 	$qs = array('product_id' => $product_id);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request && $save_result) {
+	if ($request) {
 	  $this->save_retrieved_result("produto_product_id_$product_id");
 	}
 
@@ -859,11 +897,11 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_produto_by_sku($sku, $save_result = TRUE) {
+  public function get_produto_by_sku($sku) {
 	$qs = array('sku' => $sku);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request && $save_result) {
+	if ($request) {
 	  $this->save_retrieved_result("produto_sku_$sku");
 	}
 
@@ -883,11 +921,11 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_produto_by_cod_produto_erp($cod_produto_erp, $save_result = TRUE) {
+  public function get_produto_by_cod_produto_erp($cod_produto_erp) {
 	$qs = array('cod_produto_erp' => $cod_produto_erp);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request && $save_result) {
+	if ($request) {
 	  $this->save_retrieved_result("produto_cod_produto_erp_$cod_produto_erp");
 	}
 
@@ -904,14 +942,15 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_cities($save_result = TRUE) {
+  public function get_cities() {
 	$request = $this->request('cidades', '', 'get');
 
-	if ($request && $save_result) {
+	if ($request) {
 	  $this->save_retrieved_result('cidades');
 	}
-
-	return $request;
+	else {
+	  print "Algo saiu errado." . PHP_EOL;
+	}
   }
 
   /**
@@ -929,7 +968,6 @@ class nx {
 	  $writer = $this->container['ini_writer'];
 	  $writer->toFile($file_full_path, (array) $item);
 
-	  print_r($item);
 	  print "Consulta foi salva em $file_full_path" . PHP_EOL;
 	}
 	catch(Exception $e) {
