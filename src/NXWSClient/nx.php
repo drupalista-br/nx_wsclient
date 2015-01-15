@@ -5,7 +5,7 @@ use Httpful\Request,
     Zend\Config\Writer\Ini as IniWriter,
 	Zend\Config\Reader\Ini as IniReader,
 	Zend\Mail\Message,
-	Zend\Mail\Transport\Smtp as SmtpTransport,
+	NXWSClient\Smtp as SmtpTransport,
 	Zend\Mail\Transport\SmtpOptions,
 	Pimple\Container,
 	DateTime,
@@ -105,7 +105,7 @@ class nx {
 	  $config = $c['config'];
 
 	  $message = new Message();
-	  $message->addFrom($config['servidor_smtp']['Username']);
+	  $message->addFrom($config['servidor_smtp']['username']);
 
 	  foreach($config['notificar'] as $recipient) {
 		$message->addTo($recipient['email']);
@@ -122,8 +122,8 @@ class nx {
 		'port' => $c['email_port'],
 		'connection_config' => array(
 		  'ssl' => 'ssl',
-		  'username' => $config['servidor_smtp']['Username'],
-		  'password' => $config['servidor_smtp']['Password'],
+		  'username' => $config['servidor_smtp']['username'],
+		  'password' => $config['servidor_smtp']['password'],
 		),
 	  ));
 	  return $options;
@@ -234,26 +234,6 @@ class nx {
 	}
 
 	$this->endpoint = $config['endpoint'][$env];
-
-	/*if ($config['credenciais']['username'] == 'Francisco Luz' ||
-		$config['credenciais']['password'] == 'teste') {
-	  print $print = "O Usuario ou a Senha do lojista ainda nao foram definidas." . PHP_EOL;
-	  $this->log($print);
-	  throw new Exception($print);
-	}
-
-	if ($config['servidor_smtp']['Username'] == 'nortaox.webservice.client@gmail.com' ||
-		$config['servidor_smtp']['Password'] == 'apideintegracao') {
-	  print $print = "O Usuario ou a Senha do Gmail ainda nao foram definidas." . PHP_EOL;
-	  $this->log($print);
-	  throw new Exception($print);
-	}
-
-	if ($config['notificar'][0]['email'] == 'nortaox.webservice.client@gmail.com') {
-	  print $print = "Voce precisa definir pelo menos um email para receber notificacoes de falhas." . PHP_EOL;
-	  $this->log($print);
-	  throw new Exception($print);
-	}*/
   }
 
   /**
@@ -309,12 +289,6 @@ class nx {
    * Checks if dados and tmp folders are reachable.
    */
   public function check($is_dev = FALSE) {
-	$config = $this->container['config'];
-	$email = $config['servidor_smtp']['Username'];
-	$config['notificar'] = array(array('email' => $email));
-
-	$this->container['config'] = $config;
-
 	$this->bootstrap_config($is_dev);
 	$uri = $this->endpoint;
 
@@ -331,13 +305,15 @@ class nx {
 
 	$this->set_folders(TRUE);
 
+	$email = $this->container['config']['servidor_smtp']['username'];
 	try {
-	  $this->notify("O Servidor de Email foi configurado corretamente.");
-	  print "Foi enviado uma email de teste para $email. Verifique se ele chegou na caixa de entradas." . PHP_EOL;
+	  $transport = $this->container['email_transport'];
+	  $transport->handshake();
+	  print "O servidor do gmail respondeu Ok. As credencais do email $email sao validas." . PHP_EOL;
 	}
 	catch(Exception $e){
 	  $msg = $e->getMessage();
-	  print "Algo deu errado ao tentar enviar um email para $email. $msg" . PHP_EOL;
+	  print "Algo deu errado ao tentar verificar as credenciais para o email $email. $msg" . PHP_EOL;
 	}
   }
 
