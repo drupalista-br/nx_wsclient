@@ -31,6 +31,9 @@ class nx {
    * Initial Constructor.
    */
   public function __construct() {
+	$root_folder = pathinfo(__DIR__);
+	$this->root_folder = dirname($root_folder['dirname']);
+
 	// External dependencies container.
 	$this->bootstrap_container();
   }
@@ -43,8 +46,6 @@ class nx {
    *   server.
    */
   public function bootstrap($is_dev = FALSE) {
-	// Defines this app's root folder.
-	$this->bootstrap_root_folder();
 	// Loads the config.ini and do basic validation on it.
 	$this->bootstrap_config($is_dev);
 	// Loads the merchant session credentials and token for webservice
@@ -58,60 +59,7 @@ class nx {
    */
   private function bootstrap_container() {
 	$container = new Container();
-
-	$root_folder = pathinfo(__DIR__);
-	$container['root_folder'] = dirname($root_folder['dirname']);
-
-	$container['config_preset'] = array(
-	  'ambiente' => 'producao',
-	  'endpoint' => array(
-		'sandbox' => 'http://loja.nortaoxsandbox.tk/api',
-		'producao' => 'https://loja.nortaox.com/api',
-		'dev' => 'http://loja.nortaox.local/api',
-	  ),
-	  'servicos' => array(
-		'login' => 'user/login',
-		'produto' => 'produto',
-		'pedido' => 'pedido-consultar',
-		'cidades' => 'cidades',
-	  ),
-	  'pastas' => array(
-		'dados' => '%app%/dados',
-		'tmp' => '%app%/tmp',
-	  ),
-	);
-	$container['config'] = function($c) {
-	  $config = $c['config_preset'];
-	  $config_file = $c['root_folder'] . "/config.ini";
-
-	  if (!file_exists($config_file)) {
-		throw new Exception("O arquivo $config_file nao existe." . PHP_EOL);
-	  }
-
-	  $config_file = $c['ini_reader']
-		->fromFile($config_file);
-
-	  $config['ambiente'] = (isset($config_file['ambiente'])) ? $config_file['ambiente'] : $config['ambiente'];
-
-	  if (isset($config_file['pastas']['dados']) && is_dir($config_file['pastas']['dados'])) {
-		$config['pastas']['dados'] = $config_file['pastas']['dados'];
-	  }
-
-	  if (isset($config_file['pastas']['tmp']) && is_dir($config_file['pastas']['tmp'])) {
-		$config['pastas']['tmp'] = $config_file['pastas']['tmp'];
-	  }
-
-	  if (!isset($config_file['servidor_smtp']) ||
-		  !isset($config_file['notificar']) ||
-		  !isset($config_file['credenciais'])) {
-		throw new Exception("Tem algo errado no arquivo de configuracao $config_file." . PHP_EOL);
-	  }
-	  $config['servidor_smtp'] = $config_file['servidor_smtp'];
-	  $config['notificar'] = $config_file['notificar'];
-	  $config['credenciais'] = $config_file['credenciais'];
-
-	  return $config;
-	};
+	$container['root_folder'] = $this->root_folder;
 
 	// Date and Time.
 	$container['date_time_ymd'] = function($c) {
@@ -157,7 +105,7 @@ class nx {
 	  $config = $c['config'];
 
 	  $message = new Message();
-	  $message->addFrom($config['servidor_smtp']['From']);
+	  $message->addFrom($config['servidor_smtp']['Username']);
 
 	  foreach($config['notificar'] as $recipient) {
 		$message->addTo($recipient['email']);
@@ -165,11 +113,8 @@ class nx {
 	  return $message;
 	};
 
-	$container['email_transport'] = function($c) {
+	$container['email_options'] = function($c) {
 	  $config = $c['config'];
-
-	  // Setup SMTP transport using LOGIN authentication
-	  $transport = new SmtpTransport();
 	  $options = new SmtpOptions(array(
 		'name' => $c['email_domain'],
 		'host' => $c['email_host'],
@@ -181,6 +126,14 @@ class nx {
 		  'password' => $config['servidor_smtp']['Password'],
 		),
 	  ));
+	  return $options;
+	};
+
+	$container['email_transport'] = function($c) {
+	  // Setup SMTP transport using LOGIN authentication.
+	  $transport = new SmtpTransport();
+	  $options = $c['email_options'];
+
 	  $transport->setOptions($options);
 	  return $transport;
 	};
@@ -191,21 +144,70 @@ class nx {
 	  return new FilesystemIterator($c['scan_folder_path']);
 	};
 
+	$container['config'] = $this->set_config($container);
+
 	$this->container = $container;
   }
 
   /**
-   * Defines this app root folder.
+   * Loads the settings.
+   *
+   * @param Array $c
+   *   The current container.
+   *
+   * @return Array
+   *   The configuration array.
    */
-  private function bootstrap_root_folder() {
-	$root_folder = pathinfo(__DIR__);
-	$this->root_folder = dirname($root_folder['dirname']);
+  private function set_config($c) {
+	$config = array(
+	  'ambiente' => 'producao',
+	  'endpoint' => array(
+		'sandbox' => 'http://loja.nortaoxsandbox.tk/api',
+		'producao' => 'https://loja.nortaox.com/api',
+		'dev' => 'http://loja.nortaox.local/api',
+	  ),
+	  'servicos' => array(
+		'login' => 'user/login',
+		'produto' => 'produto',
+		'pedido' => 'pedido-consultar',
+		'cidades' => 'cidades',
+	  ),
+	  'pastas' => array(
+		'dados' => '%app%/dados',
+		'tmp' => '%app%/tmp',
+	  ),
+	);
+	$config_file = $c['root_folder'] . "/config.ini";
+
+	if (!file_exists($config_file)) {
+	  throw new Exception("O arquivo $config_file nao existe." . PHP_EOL);
+	}
+
+	$config_file = $c['ini_reader']
+	  ->fromFile($config_file);
+
+	$config['ambiente'] = (isset($config_file['ambiente'])) ? $config_file['ambiente'] : $config['ambiente'];
+
+	if (isset($config_file['pastas']['dados']) && is_dir($config_file['pastas']['dados'])) {
+	  $config['pastas']['dados'] = $config_file['pastas']['dados'];
+	}
+
+	if (isset($config_file['pastas']['tmp']) && is_dir($config_file['pastas']['tmp'])) {
+	  $config['pastas']['tmp'] = $config_file['pastas']['tmp'];
+	}
+
+	if (!isset($config_file['servidor_smtp']) ||
+		!isset($config_file['notificar']) ||
+		!isset($config_file['credenciais'])) {
+	  throw new Exception("Tem algo errado no arquivo de configuracao $config_file." . PHP_EOL);
+	}
+	$config['servidor_smtp'] = $config_file['servidor_smtp'];
+	$config['notificar'] = $config_file['notificar'];
+	$config['credenciais'] = $config_file['credenciais'];
+
+	return $config;
   }
 
-  function test() {
-	$test = $this->container['config'];
-	print_r($test);
-  }
   /**
    * Load the config.ini and do basic validation on it.
    */
@@ -233,12 +235,25 @@ class nx {
 
 	$this->endpoint = $config['endpoint'][$env];
 
-	if ($config['credenciais']['username'] == 'Francisco Luz' ||
+	/*if ($config['credenciais']['username'] == 'Francisco Luz' ||
 		$config['credenciais']['password'] == 'teste') {
-	  print $print = "O username ou a password do usuario lojista nao foram definidas." . PHP_EOL;
+	  print $print = "O Usuario ou a Senha do lojista ainda nao foram definidas." . PHP_EOL;
 	  $this->log($print);
 	  throw new Exception($print);
-	}	
+	}
+
+	if ($config['servidor_smtp']['Username'] == 'nortaox.webservice.client@gmail.com' ||
+		$config['servidor_smtp']['Password'] == 'apideintegracao') {
+	  print $print = "O Usuario ou a Senha do Gmail ainda nao foram definidas." . PHP_EOL;
+	  $this->log($print);
+	  throw new Exception($print);
+	}
+
+	if ($config['notificar'][0]['email'] == 'nortaox.webservice.client@gmail.com') {
+	  print $print = "Voce precisa definir pelo menos um email para receber notificacoes de falhas." . PHP_EOL;
+	  $this->log($print);
+	  throw new Exception($print);
+	}*/
   }
 
   /**
@@ -271,7 +286,7 @@ class nx {
    * @param String $subject
    *   The email subject.
    */
-  public function notify($msg, $subject = 'NortaoX | Cliente Webservice') {
+  private function notify($msg, $subject = 'NortaoX | Cliente Webservice') {
 	$message = $this->container['email_message']
 	  ->setSubject($subject)
 	  ->setBody($msg);
@@ -294,9 +309,13 @@ class nx {
    * Checks if dados and tmp folders are reachable.
    */
   public function check($is_dev = FALSE) {
-	$this->bootstrap_root_folder();
-	$this->bootstrap_config($is_dev);
+	$config = $this->container['config'];
+	$email = $config['servidor_smtp']['Username'];
+	$config['notificar'] = array(array('email' => $email));
 
+	$this->container['config'] = $config;
+
+	$this->bootstrap_config($is_dev);
 	$uri = $this->endpoint;
 
 	$this->container['request_method'] = 'get';
@@ -311,6 +330,15 @@ class nx {
 	}
 
 	$this->set_folders(TRUE);
+
+	try {
+	  $this->notify("O Servidor de Email foi configurado corretamente.");
+	  print "Foi enviado uma email de teste para $email. Verifique se ele chegou na caixa de entradas." . PHP_EOL;
+	}
+	catch(Exception $e){
+	  $msg = $e->getMessage();
+	  print "Algo deu errado ao tentar enviar um email para $email. $msg" . PHP_EOL;
+	}
   }
 
   /**
