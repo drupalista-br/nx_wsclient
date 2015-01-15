@@ -30,6 +30,7 @@ class NxTest extends NxTestCase {
 	$output = "Endpoint http://loja.nortaox.local/api esta acessivel." . PHP_EOL;
 	$output .= "As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL;
 	$output .= "O servidor do gmail respondeu Ok. As credencais do email nortaox.webservice.client@gmail.com sao validas." . PHP_EOL;
+	$output .= "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
 	$this->expectOutPutString($output);
 
 	$root_folder = $this->root_folder;
@@ -134,6 +135,7 @@ class NxTest extends NxTestCase {
 
 	  $output = "Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL;
 	  $output .= "Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL;
+	  $output .= "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
 	  $this->expectOutPutString($output);
 	}
 
@@ -161,7 +163,8 @@ class NxTest extends NxTestCase {
 	$this->assertFalse(file_exists("$root_folder/dados/consulta/cidades.txt"));
 
 	$output = "Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL .
-			  "Consulta foi salva em $root_folder/dados/consulta/cidades.txt" . PHP_EOL;
+	$output .= "Consulta foi salva em $root_folder/dados/consulta/cidades.txt" . PHP_EOL;
+	$output .= "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
 	$this->expectOutPutString($output);
 	
 	$nx = new nx();

@@ -14,7 +14,8 @@ use Httpful\Request,
 
 class nx {
   // Holds external dependencies.
-  public $container;
+  public $container,
+		 $internet_connection;
 
   private $root_folder,
 		  $config = array(),
@@ -26,6 +27,19 @@ class nx {
 		  $response_body_json,
 		  $response_code,
 		  $response_error_msg;
+
+  /**
+   * There is NO internet connection whatsoever.
+   */
+  const INTERNET_CONNECTION_DOWN = 0;
+  /**
+   * There is internet connection and NortaoX.com is responsive.
+   */
+  const INTERNET_CONNECTION_OK = 1;
+  /**
+   * There is internet connection but NortaoX.com is not responsive.
+   */
+  const INTERNET_CONNECTION_UP_NORTAOX_DOWN = 2;
 
   /**
    * Initial Constructor.
@@ -218,6 +232,7 @@ class nx {
 	$this->folders = $config['pastas'];
 	$this->set_folders();
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
+	$this->internet_connection();
 
 	if ($is_dev) {
 	  $env = 'dev';
@@ -287,6 +302,8 @@ class nx {
   /**
    * Sends a test request to the endpoint.
    * Checks if dados and tmp folders are reachable.
+   * Checks the internet connection status.
+   * Tries a handshake with Google's SMTP server.
    */
   public function check($is_dev = FALSE) {
 	$this->bootstrap_config($is_dev);
@@ -314,6 +331,35 @@ class nx {
 	catch(Exception $e){
 	  $msg = $e->getMessage();
 	  print "Algo deu errado ao tentar verificar as credenciais para o email $email. $msg" . PHP_EOL;
+	}
+  }
+
+  /**
+   * Checks the current internet connection status.
+   */
+  private function internet_connection() {
+    $google = @fsockopen("www.google.com", 80);
+	$nortaox = @fsockopen("loja.nortaox.com", 80);
+
+	if ($google && $nortaox ||
+		!$google && $nortaox) {
+	  print "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
+	  $this->internet_connection = self::INTERNET_CONNECTION_OK;
+	  fclose($google);
+	  fclose($nortaox);
+	}
+
+	if ($google && !$nortaox) {
+	  print $print = "A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo." . PHP_EOL;
+	  $this->internet_connection = self::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
+	  $this->log($print);
+	  fclose($google);
+	}
+
+	if (!$google && !$nortaox) {
+	  print $print = "NAO ha conexao com a internet." . PHP_EOL;
+	  $this->internet_connection = self::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
+	  $this->log($print);
 	}
   }
 
