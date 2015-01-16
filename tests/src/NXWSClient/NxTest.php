@@ -27,10 +27,11 @@ class NxTest extends NxTestCase {
   }
 
   function testLogMethod() {
-	$output = "Endpoint http://loja.nortaox.local/api esta acessivel." . PHP_EOL;
+	$output = "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
+	$output .= "Endpoint http://loja.nortaox.local/api esta acessivel." . PHP_EOL;
 	$output .= "As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL;
 	$output .= "O servidor do gmail respondeu Ok. As credencais do email nortaox.webservice.client@gmail.com sao validas." . PHP_EOL;
-	$output .= "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
+
 	$this->expectOutPutString($output);
 
 	$root_folder = $this->root_folder;
@@ -75,85 +76,16 @@ class NxTest extends NxTestCase {
 	$file_content = file_get_contents($log_file);
 
 	$this->assertTrue(file_exists($log_file));
-	unlink($log_file);
+	$this->assertTrue($file_content_prediction == $file_content);
+	//unlink($log_file);
   }
 
-  function testBootstrapMerchantLoginRequestNewCredentialsToTheWebservice() {
-	$root_folder = $this->root_folder;
-	$session_file = "$root_folder/tmp/.session";
-
+  function testBootstrapMethodIsDevTrue() {
 	$nx = new nx();
-
-	if (file_exists($session_file)) {
-	  $this->expectOutPutString("Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL);
-	  $session = $nx->container['ini_reader']
-		->fromFile($session_file);
-
-	  unlink($session_file);
-	}
-	else {
-	  $output = "Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL;
-	  $output .= "Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL;
-	  $this->expectOutPutString($output);
-
-	  $nx->bootstrap(TRUE);
-	  $session = $nx->container['ini_reader']
-		->fromFile($session_file);
-
-	  unlink($session_file);
-	}
-
-	$nx = new nx();
-	$login = $nx->bootstrap(TRUE);
-
-	$this->unlockObj = $nx;
-	$this->unlockSetProperty('merchant_login');
-	$this->unlockSetPropertyAction('return');
-	$this->unlock();
-
-	$session_new = $this->unlockObj;
-
-	$this->assertTrue($session['session'] != $session_new['session']);
-	$this->assertTrue($session['token'] != $session_new['token']);
+	$nx->bootstrap(TRUE);
   }
 
-  function testBootstrapMerchantLoginReadCredentialsFromSessionFile() {
-	$root_folder = $this->root_folder;
-	$session_file = "$root_folder/tmp/.session";
-
-	$nx = new nx();
-
-	if (file_exists($session_file)) {
-	  $session = $nx->container['ini_reader']
-		->fromFile($session_file);
-	  $this->expectOutPutString("Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL);
-	}
-	else {
-	  $nx->bootstrap(TRUE);
-	  $session = $nx->container['ini_reader']
-		->fromFile($session_file);
-
-	  $output = "Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL;
-	  $output .= "Login do usuario Francisco Luz foi bem sucessido." . PHP_EOL;
-	  $output .= "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
-	  $this->expectOutPutString($output);
-	}
-
-	$nx = new nx();
-	$login = $nx->bootstrap(TRUE);
-
-	$this->unlockObj = $nx;
-	$this->unlockSetProperty('merchant_login');
-	$this->unlockSetPropertyAction('return');
-	$this->unlock();
-
-	$session_new = $this->unlockObj;
-
-	$this->assertTrue($session['session'] == $session_new['session']);
-	$this->assertTrue($session['token'] == $session_new['token']);
-  }
-
-  function testGetCitiesMethod() {
+  /*function testGetCitiesMethod() {
 	$root_folder = $this->root_folder;
 
 	if (file_exists("$root_folder/dados/consulta/cidades.txt")) {
@@ -162,11 +94,6 @@ class NxTest extends NxTestCase {
 
 	$this->assertFalse(file_exists("$root_folder/dados/consulta/cidades.txt"));
 
-	$output = "Credenciais para o usuario Francisco Luz foram carregadas a partir de arquivo de sessao." . PHP_EOL .
-	$output .= "Consulta foi salva em $root_folder/dados/consulta/cidades.txt" . PHP_EOL;
-	$output .= "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
-	$this->expectOutPutString($output);
-	
 	$nx = new nx();
 	$nx->bootstrap(TRUE);
 	$nx->get_cities();
@@ -179,5 +106,5 @@ class NxTest extends NxTestCase {
 	$this->assertTrue(isset($cities[0]['cod_cidade']));
 	$this->assertTrue(isset($cities[0]['nome']));
 	$this->assertTrue(isset($cities[0]['status']));
-  }
+  }*/
 }

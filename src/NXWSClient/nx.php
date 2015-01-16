@@ -13,12 +13,11 @@ use Httpful\Request,
 	Exception;
 
 class nx {
-  // Holds external dependencies.
-  public $container,
+  public $root_folder,
+		 $container,
 		 $internet_connection;
 
-  private $root_folder,
-		  $config = array(),
+  private $config = array(),
 		  $config_file,
 		  $folders = array(),
 		  $log_file,
@@ -45,6 +44,7 @@ class nx {
    * Initial Constructor.
    */
   public function __construct() {
+	$this->internet_connection();
 	$root_folder = pathinfo(__DIR__);
 	$this->root_folder = dirname($root_folder['dirname']);
 
@@ -73,7 +73,6 @@ class nx {
    */
   private function bootstrap_container() {
 	$container = new Container();
-	$container['root_folder'] = $this->root_folder;
 
 	// Date and Time.
 	$container['date_time_ymd'] = function($c) {
@@ -92,14 +91,14 @@ class nx {
 	// Http requests.
 	$container['request_method'] = '';
 	$container['request_uri'] = '';
-	$container['request'] = function($c) {
+	$container['request'] = $container->factory(function ($c) {
 	  // GET, POST or PUT.
 	  $method = $c['request_method'];
 	  // The service full URI.
 	  $uri = $c['request_uri'];
 
 	  return Request::$method($uri);
-	};
+	});
 
 	// Ini file writer.
 	$container['ini_reader'] = function($c) {
@@ -191,7 +190,7 @@ class nx {
 		'tmp' => '%app%/tmp',
 	  ),
 	);
-	$config_file = $c['root_folder'] . "/config.ini";
+	$config_file = $this->root_folder . "/config.ini";
 
 	if (!file_exists($config_file)) {
 	  throw new Exception("O arquivo $config_file nao existe." . PHP_EOL);
@@ -232,7 +231,6 @@ class nx {
 	$this->folders = $config['pastas'];
 	$this->set_folders();
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
-	$this->internet_connection();
 
 	if ($is_dev) {
 	  $env = 'dev';
@@ -261,13 +259,11 @@ class nx {
 	if (!empty($this->log_file)) {
 	  $log_file = $this->log_file;
 
-	  $this->response_code = 500;
 	  $time = $this->container['date_time_gis'];
 
 	  $log = "----$time----" . PHP_EOL;
 	  $log .= $msg;
 
-	  $this->response_error_msg = $msg;
 	  file_put_contents($log_file, $log, FILE_APPEND);
 	}
   }
@@ -337,28 +333,29 @@ class nx {
   /**
    * Checks the current internet connection status.
    */
-  private function internet_connection() {
+  public function internet_connection() {
     $google = @fsockopen("www.google.com", 80);
 	$nortaox = @fsockopen("loja.nortaox.com", 80);
 
-	if ($google && $nortaox ||
-		!$google && $nortaox) {
+	if ($google && $nortaox || !$google && $nortaox) {
 	  print "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
-	  $this->internet_connection = self::INTERNET_CONNECTION_OK;
-	  fclose($google);
+	  $this->internet_connection = nx::INTERNET_CONNECTION_OK;
 	  fclose($nortaox);
+	  if ($google) {
+		fclose($google);
+	  }
 	}
 
 	if ($google && !$nortaox) {
 	  print $print = "A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo." . PHP_EOL;
-	  $this->internet_connection = self::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
+	  $this->internet_connection = nx::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
 	  $this->log($print);
 	  fclose($google);
 	}
 
 	if (!$google && !$nortaox) {
 	  print $print = "NAO ha conexao com a internet." . PHP_EOL;
-	  $this->internet_connection = self::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
+	  $this->internet_connection = nx::INTERNET_CONNECTION_DOWN;
 	  $this->log($print);
 	}
   }
@@ -652,71 +649,73 @@ class nx {
    *   unique identification for sorting out a single item.
    */
   public function scan_dados_folder($subfolder_name = 'produto', $prime_id_field_name = 'product_id', $secondary_id_field_names = array('sku', 'cod_produto_erp')) {
-	$dados = $this->folders['dados'];
-	$item_data_folder = "$dados/$subfolder_name";
-	$this->container['scan_folder_path'] = $item_data_folder;
-
-	$files = $this->container['scan_folder'];
-
-	$result = array();
-	foreach ($files as $file_object) {
-	  if ($file_object->isFile()) {
-		$file_name = $file_object->getFilename();
-		$file_full_path = "$item_data_folder/$file_name";
-
-		if (filesize($file_full_path) === 0) {
-		  // File is empty. So, it goes straight into the fail's bin.
-		  $print = 'O arquivo tah vazio.' . PHP_EOL;
-
-		  $item_data = array();
-		  $this->set_sync_attempt_tag($item_data, $print);
-
-		  $this->scan_dados_fail($item_data, $subfolder_name, $file_name);
-		  print $print;
-
-		  $this->delete_file($file_full_path);
-
-		  // Move on to next file.
-		  break;
-		}
-
-		$item_file_data = $this->container['ini_reader']
-		  ->fromFile($file_full_path);
-		if ($item_file_data) {
-		  $first_key = current(array_keys($item_file_data));
+	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
+	  $dados = $this->folders['dados'];
+	  $item_data_folder = "$dados/$subfolder_name";
+	  $this->container['scan_folder_path'] = $item_data_folder;
   
-		  if (is_array($item_file_data[$first_key])) {
-			// There are more than one item in the file.
-			foreach ($item_file_data as $item => $item_data) {
-			  $this->scan_dados_item_data($item_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
+	  $files = $this->container['scan_folder'];
+  
+	  $result = array();
+	  foreach ($files as $file_object) {
+		if ($file_object->isFile()) {
+		  $file_name = $file_object->getFilename();
+		  $file_full_path = "$item_data_folder/$file_name";
+  
+		  if (filesize($file_full_path) === 0) {
+			// File is empty. So, it goes straight into the fail's bin.
+			$print = 'O arquivo tah vazio.' . PHP_EOL;
+  
+			$item_data = array();
+			$this->set_sync_attempt_tag($item_data, $print);
+  
+			$this->scan_dados_fail($item_data, $subfolder_name, $file_name);
+			print $print;
+  
+			$this->delete_file($file_full_path);
+  
+			// Move on to next file.
+			break;
+		  }
+  
+		  $item_file_data = $this->container['ini_reader']
+			->fromFile($file_full_path);
+		  if ($item_file_data) {
+			$first_key = current(array_keys($item_file_data));
+	
+			if (is_array($item_file_data[$first_key])) {
+			  // There are more than one item in the file.
+			  foreach ($item_file_data as $item => $item_data) {
+				$this->scan_dados_item_data($item_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
+			  }
+			}
+			else {
+			  // There is only one item in the file.
+			  $this->scan_dados_item_data($item_file_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
 			}
 		  }
 		  else {
-			// There is only one item in the file.
-			$this->scan_dados_item_data($item_file_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
-		  }
-		}
-		else {
-		  print $print = "Nao foi possivel carregar o arquivo $file_full_path." . PHP_EOL;
-		  $this->log($print);
-
-		  $tmp = $this->folders['tmp'];
-		  $move_to = "$tmp/falhas/$subfolder_name/$file_name";
-		  // Move file to fail's bin.
-		  if (!rename($file_full_path, $move_to)) {
-			print $print = "Nao foi possivel mover o arquivo $file_full_path para $move_to." . PHP_EOL;
+			print $print = "Nao foi possivel carregar o arquivo $file_full_path." . PHP_EOL;
 			$this->log($print);
+  
+			$tmp = $this->folders['tmp'];
+			$move_to = "$tmp/falhas/$subfolder_name/$file_name";
+			// Move file to fail's bin.
+			if (!rename($file_full_path, $move_to)) {
+			  print $print = "Nao foi possivel mover o arquivo $file_full_path para $move_to." . PHP_EOL;
+			  $this->log($print);
+			}
 		  }
+  
+		  // We are done with this file. By now its content should either be,
+		  // partially or entirely, at the fail or success bin.
+		  $this->delete_file($file_full_path);
 		}
-
-		// We are done with this file. By now its content should either be,
-		// partially or entirely, at the fail or success bin.
-		$this->delete_file($file_full_path);
 	  }
-	}
-
-	if (!empty($result)) {
-	  // 
+  
+	  if (!empty($result)) {
+		// 
+	  }
 	}
   }
 
@@ -1021,7 +1020,7 @@ class nx {
 	  print "Consulta foi salva em $file_full_path" . PHP_EOL;
 	}
 	catch(Exception $e) {
-	  $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
+	  print $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
 	  $this->log($print);
 	}
   }

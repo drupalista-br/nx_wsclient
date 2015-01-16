@@ -9,9 +9,7 @@ use Zend\Config\Reader\Ini as IniReader;
 
 require_once "vendor/autoload.php";
 $nx = new nx();
-$nx->internet_connection();
-
-
-
+$nx->bootstrap(TRUE);
+$nx->get_cities();
 
 
