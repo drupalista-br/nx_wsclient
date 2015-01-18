@@ -77,7 +77,7 @@ class NxTest extends NxTestCase {
 
 	$this->assertTrue(file_exists($log_file));
 	$this->assertTrue($file_content_prediction == $file_content);
-	//unlink($log_file);
+	unlink($log_file);
   }
 
   function testBootstrapMethodIsDevTrue() {

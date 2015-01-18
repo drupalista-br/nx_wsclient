@@ -1,7 +1,8 @@
 <?php
 namespace NXWSClient;
 
-use Httpful\Request,
+use NXWSClient\tools,
+	Httpful\Request,
     Zend\Config\Writer\Ini as IniWriter,
 	Zend\Config\Reader\Ini as IniReader,
 	Zend\Mail\Message,
@@ -18,6 +19,10 @@ class nx {
 		 $internet_connection;
 
   private $config = array(),
+		  // List of subfolders in dados folder. Each subfolder alone
+		  // represents a single service at the webservices.
+		  // These subfolders will contain file data for synchronization.
+		  $sync_services = array('produto'),
 		  $config_file,
 		  $folders = array(),
 		  $log_file,
@@ -30,7 +35,7 @@ class nx {
   /**
    * There is NO internet connection whatsoever.
    */
-  const INTERNET_CONNECTION_DOWN = 0;
+  const INTERNET_CONNECTION_DOWN = -1;
   /**
    * There is internet connection and NortaoX.com is responsive.
    */
@@ -39,6 +44,14 @@ class nx {
    * There is internet connection but NortaoX.com is not responsive.
    */
   const INTERNET_CONNECTION_UP_NORTAOX_DOWN = 2;
+
+  const SYNC_TAG_ACTION_CREATE = -1;
+  const SYNC_TAG_ACTION_UPDATE = 1;
+  const SYNC_TAG_ACTION_FAIL = 2;
+  const SYNC_TAG_ACTION_ITEM_DATA_EMPTY = 3;
+
+  const MOVE_ITEM_DATA_ACTION_FAIL = 'falhas';
+  const MOVE_ITEM_DATA_ACTION_SUCCESS = 'sucessos';
 
   /**
    * Initial Constructor.
@@ -75,17 +88,10 @@ class nx {
 	$container = new Container();
 
 	// Date and Time.
-	$container['date_time_ymd'] = function($c) {
+	$container['date_format'] = "Y-m-d";
+	$container['date_time'] = function($c) {
 	  $date = new DateTime();
-	  return $date->format("Y-m-d");
-	};
-	$container['date_time_gis'] = function($c) {
-	  $date = new DateTime();
-	  return $date->format("G:i:s");
-	};
-	$container['date_time_ymd-his'] = function($c) {
-	  $date = new DateTime();
-	  return $date->format("Y-m-d H:i:s");
+	  return $date->format($c['date_format']);
 	};
 
 	// Http requests.
@@ -180,20 +186,31 @@ class nx {
 		'dev' => 'http://loja.nortaox.local/api',
 	  ),
 	  'servicos' => array(
-		'login' => 'user/login',
-		'produto' => 'produto',
-		'pedido' => 'pedido-consultar',
-		'cidades' => 'cidades',
+		'login' => array(
+		  'url' => 'user/login',
+		),
+		'produto' => array(
+		  'url' => 'produto',
+		  'prime_id_field' => 'product_id',
+		  'secondary_id_fields' => array('sku', 'cod_produto_erp'),
+		),
+		'pedido' => array(
+		  'url' => 'pedido-consultar',
+		),
+		'cidades' => array(
+		  'url' => 'cidades',
+		),
 	  ),
 	  'pastas' => array(
 		'dados' => '%app%/dados',
 		'tmp' => '%app%/tmp',
 	  ),
 	);
+
 	$config_file = $this->root_folder . "/config.ini";
 
 	if (!file_exists($config_file)) {
-	  throw new Exception("O arquivo $config_file nao existe." . PHP_EOL);
+	  throw new Exception(tools::color_msg(array("O arquivo $config_file nao existe." . PHP_EOL), tools::COLOR_RED));
 	}
 
 	$config_file = $c['ini_reader']
@@ -212,7 +229,7 @@ class nx {
 	if (!isset($config_file['servidor_smtp']) ||
 		!isset($config_file['notificar']) ||
 		!isset($config_file['credenciais'])) {
-	  throw new Exception("Tem algo errado no arquivo de configuracao $config_file." . PHP_EOL);
+	  throw new Exception(tools::color_msg(array("Tem algo errado no arquivo de configuracao $config_file." . PHP_EOL), tools::COLOR_RED));
 	}
 	$config['servidor_smtp'] = $config_file['servidor_smtp'];
 	$config['notificar'] = $config_file['notificar'];
@@ -225,7 +242,7 @@ class nx {
    * Load the config.ini and do basic validation on it.
    */
   private function bootstrap_config($is_dev) {
-	$current_date = $this->container['date_time_ymd'];
+	$current_date = $this->container['date_time'];
 
 	$this->config = $config = $this->container['config'];
 	$this->folders = $config['pastas'];
@@ -240,7 +257,8 @@ class nx {
 	  $env = $config['ambiente'];
   
 	  if (!in_array($env, $valid_envs)) {
-		print $print = "O valor $env para ambiente eh invalido." . PHP_EOL;
+		$print = "O valor $env para ambiente eh invalido." . PHP_EOL;
+		print tools::color_msg(array($print), tools::COLOR_RED);
 		$this->log($print);
 		throw new Exception($print);
 	  }
@@ -259,7 +277,8 @@ class nx {
 	if (!empty($this->log_file)) {
 	  $log_file = $this->log_file;
 
-	  $time = $this->container['date_time_gis'];
+	  $this->container['date_format'] = "G:i:s";
+	  $time = $this->container['date_time'];
 
 	  $log = "----$time----" . PHP_EOL;
 	  $log .= $msg;
@@ -286,11 +305,12 @@ class nx {
 
 	try {
 	  $transport->send($message);
-	  print "Email enviado com sucesso." . PHP_EOL;
+	  print tools::color_msg(array("Foi enviado uma notificacao por Email ao administrador do sistema." . PHP_EOL), tools::COLOR_YELLOW);
 	}
 	catch(Exception $e) {
 	  $msg = $e->getMessage();
-	  print $print = "Algo deu errado. $msg" . PHP_EOL;
+	  $print = "Algo deu errado. $msg" . PHP_EOL;
+	  print tools::color_msg(array($print), tools::COLOR_RED);
 	  $this->log($print);
 	}
   }
@@ -302,31 +322,33 @@ class nx {
    * Tries a handshake with Google's SMTP server.
    */
   public function check($is_dev = FALSE) {
-	$this->bootstrap_config($is_dev);
-	$uri = $this->endpoint;
-
-	$this->container['request_method'] = 'get';
-	$this->container['request_uri'] = $uri;
-	$request = $this->container['request']
-	  ->send();
-
-	$endpoint_ok = $this->response_code($request, $uri);
-
-	if ($endpoint_ok) {
-	  print "Endpoint $uri esta acessivel." . PHP_EOL;
-	}
-
-	$this->set_folders(TRUE);
-
-	$email = $this->container['config']['servidor_smtp']['username'];
-	try {
-	  $transport = $this->container['email_transport'];
-	  $transport->handshake();
-	  print "O servidor do gmail respondeu Ok. As credencais do email $email sao validas." . PHP_EOL;
-	}
-	catch(Exception $e){
-	  $msg = $e->getMessage();
-	  print "Algo deu errado ao tentar verificar as credenciais para o email $email. $msg" . PHP_EOL;
+	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
+	  $this->bootstrap_config($is_dev);
+	  $uri = $this->endpoint;
+  
+	  $this->container['request_method'] = 'get';
+	  $this->container['request_uri'] = $uri;
+	  $request = $this->container['request']
+		->send();
+  
+	  $endpoint_ok = $this->response_code($request, $uri);
+  
+	  if ($endpoint_ok) {
+		print tools::color_msg(array("Endpoint $uri esta acessivel." . PHP_EOL), tools::COLOR_GREEN);
+	  }
+  
+	  $this->set_folders(TRUE);
+  
+	  $email = $this->container['config']['servidor_smtp']['username'];
+	  try {
+		$transport = $this->container['email_transport'];
+		$transport->handshake();
+		print tools::color_msg(array("O servidor do gmail respondeu Ok. As credencais do email $email sao validas." . PHP_EOL), tools::COLOR_GREEN);
+	  }
+	  catch(Exception $e){
+		$msg = $e->getMessage();
+		print tools::color_msg(array("Algo deu errado ao tentar verificar as credenciais para o email $email. $msg" . PHP_EOL), tools::COLOR_RED);
+	  }
 	}
   }
 
@@ -338,7 +360,7 @@ class nx {
 	$nortaox = @fsockopen("loja.nortaox.com", 80);
 
 	if ($google && $nortaox || !$google && $nortaox) {
-	  print "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
+	  print tools::color_msg(array("A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL), tools::COLOR_GREEN);
 	  $this->internet_connection = nx::INTERNET_CONNECTION_OK;
 	  fclose($nortaox);
 	  if ($google) {
@@ -347,14 +369,16 @@ class nx {
 	}
 
 	if ($google && !$nortaox) {
-	  print $print = "A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo." . PHP_EOL;
+	  $print = "A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo. Tente mais tarde." . PHP_EOL;
+	  print tools::color_msg(array($print), tools::COLOR_YELLOW);
 	  $this->internet_connection = nx::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
 	  $this->log($print);
 	  fclose($google);
 	}
 
 	if (!$google && !$nortaox) {
-	  print $print = "NAO ha conexao com a internet." . PHP_EOL;
+	  $print = "NAO ha conexao com a internet." . PHP_EOL;
+	  print tools::color_msg(array($print), tools::COLOR_RED);
 	  $this->internet_connection = nx::INTERNET_CONNECTION_DOWN;
 	  $this->log($print);
 	}
@@ -381,8 +405,8 @@ class nx {
 		  "logs",
 		);
 
-		foreach(${$folder . "_subfolders"} as $subfolder_name) {
-		  $full_subfolder_path = "$folder_path/$subfolder_name";
+		foreach(${$folder . "_subfolders"} as $service) {
+		  $full_subfolder_path = "$folder_path/$service";
 		  $mkdir = TRUE;
 
 		  if (!file_exists($full_subfolder_path)) {
@@ -396,7 +420,7 @@ class nx {
 	  }
 
 	  if ($error_msgs) {
-		print "Nao foi possivel criar ou nao eh possivel gravar arquivos dentro das seguintes pastas:" . PHP_EOL;
+		print tools::color_msg(array("Nao foi possivel criar ou nao eh possivel gravar arquivos dentro das seguintes pastas:" . PHP_EOL), tools::COLOR_RED);
 		foreach ($error_msgs as $error_number => $msg) {
 		  print $error_number + 1 . ". $msg" . PHP_EOL;
 		}
@@ -404,7 +428,7 @@ class nx {
 	  }
 	}
 	if ($check) {
-	  print "As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL;
+	  print tools::color_msg(array("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL), tools::COLOR_GREEN);
 	}
   }
 
@@ -419,63 +443,66 @@ class nx {
    *   Whether or not the login was successful.
    */
   private function bootstrap_merchant_login($reset = FALSE) {
-	$username = $this->config['credenciais']['username'];
-	$session_file = $this->folders['tmp'] . "/.session";
-
-	if (file_exists($session_file) && !$reset) {
-	  $session = $this->container['ini_reader']
-		->fromFile($session_file);
-
-	  $this->merchant_login['session'] = $session['session'];
-	  $this->merchant_login['token'] = $session['token'];
-
-	  print "Credenciais para o usuario $username foram carregadas a partir de arquivo de sessao." . PHP_EOL;
-	}
-	else {
-	  // Request merchant authentication.
-	  $endpoint = $this->endpoint;
-	  $service = $this->config['servicos']['login'];
-	  $password = $this->config['credenciais']['password'];
-
-	  $uri = "$endpoint/$service";
-
-	  try{
-		$this->container['request_method'] = 'post';
-		$this->container['request_uri'] = $uri;
-		$request = $this->container['request']
-		  ->body("username=$username&password=$password")
-		  ->expectsJson()
-		  ->send();
-		$response_ok = $this->response_code($request, $uri);
-	  }
-	  catch(Exception $e) {
-		$this->response_error_msg = $e->getMessage();
-		$this->response_code = 500;
-		$response_ok = FALSE;
-	  }
-
-	  if ($response_ok) {
-		$sessid = $request->body->sessid;
-		$session_name = $request->body->session_name;
+	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
+	  $username = $this->config['credenciais']['username'];
+	  $session_file = $this->folders['tmp'] . "/.session";
   
-		$session = array();
-		$this->merchant_login['session'] = $session['session'] = "$session_name=$sessid";
-		$this->merchant_login['token'] = $session['token'] = $request->body->token;
-
-		$writer = $this->container['ini_writer'];
-		$writer->toFile($session_file, $session);
-
-		print "Login do usuario $username foi bem sucessido." . PHP_EOL;
-		if ($reset) {
-		  print "Novo token foi salvo com sucesso." . PHP_EOL;
-		}
+	  if (file_exists($session_file) && !$reset) {
+		$session = $this->container['ini_reader']
+		  ->fromFile($session_file);
+  
+		$this->merchant_login['session'] = $session['session'];
+		$this->merchant_login['token'] = $session['token'];
+  
+		print tools::color_msg(array("Credenciais para o usuario $username foram carregadas a partir de arquivo de sessao." . PHP_EOL), tools::COLOR_GREEN);
 	  }
 	  else {
-		$http_code = $this->response_code;
-		print $print = "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
+		// Request merchant authentication.
+		$endpoint = $this->endpoint;
+		$service = $this->config['servicos']['login']['url'];
+		$password = $this->config['credenciais']['password'];
+  
+		$uri = "$endpoint/$service";
+  
+		try{
+		  $this->container['request_method'] = 'post';
+		  $this->container['request_uri'] = $uri;
+		  $request = $this->container['request']
+			->body("username=$username&password=$password")
+			->expectsJson()
+			->send();
+		  $response_ok = $this->response_code($request, $uri);
+		}
+		catch(Exception $e) {
+		  $this->response_error_msg = $e->getMessage();
+		  $this->response_code = 500;
+		  $response_ok = FALSE;
+		}
+  
+		if ($response_ok) {
+		  $sessid = $request->body->sessid;
+		  $session_name = $request->body->session_name;
+	
+		  $session = array();
+		  $this->merchant_login['session'] = $session['session'] = "$session_name=$sessid";
+		  $this->merchant_login['token'] = $session['token'] = $request->body->token;
+  
+		  $writer = $this->container['ini_writer'];
+		  $writer->toFile($session_file, $session);
+  
+		  print tools::color_msg(array("Login do usuario $username foi bem sucessido." . PHP_EOL), tools::COLOR_GREEN);
+		  if ($reset) {
+			print tools::color_msg(array("Novo token foi salvo com sucesso." . PHP_EOL), tools::COLOR_GREEN);
+		  }
+		}
+		else {
+		  $http_code = $this->response_code;
+		  $print = "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
+		  $print .= $this->response_error_msg;
+		  print tools::color_msg(array($print), tools::COLOR_RED);
 
-		$print .= $this->response_error_msg;
-		$this->log($print);
+		  $this->log($print);
+		}
 	  }
 	}
   }
@@ -486,7 +513,7 @@ class nx {
    * @param String $service
    *   The service path.
    *
-   * @param Array $body
+   * @param Array $item_data
    *   PHP Array of items containing the data to be later converted into Json.
    *
    * @param String $http_method
@@ -498,9 +525,9 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  private function request($service, $body, $http_method, $service_method = '') {
+  private function request($service, $item_data, $http_method, $service_method = '') {
 	$endpoint = $this->endpoint;
-	$service = $this->config['servicos'][$service];
+	$service = $this->config['servicos'][$service]['url'];
 
 	$uri = "$endpoint/$service" . $service_method;
 
@@ -512,7 +539,7 @@ class nx {
 		->expectsJson()
 		->addHeader('Cookie', $this->merchant_login['session'])
 		->addHeader('X-CSRF-Token', $this->merchant_login['token'])
-		->body($body)
+		->body($item_data)
 		->send();
 
 	  $response_ok = $this->response_code($request, $uri);
@@ -541,7 +568,6 @@ class nx {
    *
    * @return Bool
    *   Whether or not  the request was successful ( code 200 ).
-   *
    */
   private function response_code(\Httpful\Response $response, $uri) {
 	$this->response_code = $code = $response->code;
@@ -549,11 +575,12 @@ class nx {
 	if ($code != 200) {
 	  $body = $response->raw_body;
 
-	  print $print = "A chamada ao Endpoint $uri FALHOU. Retornou o Codigo de Status HTTP $code." . PHP_EOL;
+	  $print = "A chamada ao Endpoint $uri FALHOU. Retornou o Codigo de Status HTTP $code." . PHP_EOL;
 	  if (!empty($body)) {
-		print $print = "O Webservice respondeu o seguinte:" . PHP_EOL;
-		print $print = $body . PHP_EOL;
+		$print .= "O Webservice respondeu o seguinte:" . PHP_EOL;
+		$print .= $body . PHP_EOL;
 	  }
+	  print tools::color_msg(array($print), tools::COLOR_RED);
 	  $this->log($print);
 
 	  return FALSE;
@@ -561,17 +588,8 @@ class nx {
 	return TRUE;
   }
 
-  /**
-   * Creates a new service item.
-   *
-   * @param String $service
-   *  The service path.
-   *
-   * @return Bool
-   *   Whether or not the request was successful.
-   */
-  private function create($service = 'produto') {
-	$body = array(
+  /*private function create($service = 'produto') {
+	$item_data = array(
 	  //'nome' => 'my new product 200',
 	  'preco' => 5068,
 	  'preco_velho' => 7068,
@@ -582,21 +600,10 @@ class nx {
 	  // Opcional.
 	  'cod_produto_erp' => '998',
 	);
-
-	$this->request($service, $body, 'post');
   }
 
-  /**
-   * Updates service item.
-   *
-   * @param String $service
-   *  The service path.
-   *
-   * @return Bool
-   *   Whether or not the request was successful.
-   */
   private function update($service = 'produto', $service_method = 'atualizar') {
-	$body = array(
+	$item_data = array(
 	  //'nome' => 'update test 55',
 	  //'product_id' => 64,
 	  'sku' => '87-35-55',
@@ -610,9 +617,7 @@ class nx {
 	  //'cod_produto_erp' => '1111',
 	  'status' => 0,
 	);
-
-	return $this->request($service, $body, 'put', "/$service_method");
-  }
+  }*/
 
   /**
    * Deletes a file. Logs message if it fails.
@@ -623,98 +628,118 @@ class nx {
   private function delete_file($file_full_path) {
 	if (file_exists($file_full_path)) {
 	  if (!unlink($file_full_path)) {
-		print $print = "Nao foi possivel deletar o arquivo $file_full_path." . PHP_EOL;
+		$print = "Nao foi possivel deletar o arquivo $file_full_path." . PHP_EOL;
+		print tools::color_msg(array($print), tools::COLOR_RED);
 		$this->log($print);
 	  }
 	}
   }
 
   /**
-   * Checks dados/$subfolder_name for new files. It then reads them, calls either
-   * create or update method.
-   * If create or update returns TRUE ( success ) it moves the data file to
-   * tmp/sucesso/$subfolder_name, otherwise adds an error tag into the file
-   * before moving it to tmp/falhas/$subfolder_name.
-   *
-   * @param String $subfolder_name
-   *   The subfolder name where there will be one or more files contaning
-   *   items data for either creating or updating them to the NortaoX.com
-   *   Webservice.
-   *
-   * @param String $prime_id_field_name
-   *   The item id field name at the NortaoX.com.
-   *
-   * @param Array $secondary_id_field_names
-   *   Field names that, apart from the prime id field name, also hold an
-   *   unique identification for sorting out a single item.
+   * Checks dados' subfolders for new files and sync their data with the
+   * webservice.
    */
-  public function scan_dados_folder($subfolder_name = 'produto', $prime_id_field_name = 'product_id', $secondary_id_field_names = array('sku', 'cod_produto_erp')) {
+  public function scan_dados_folder() {
+	// Go on only if there is internet connection.
 	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
-	  $dados = $this->folders['dados'];
-	  $item_data_folder = "$dados/$subfolder_name";
-	  $this->container['scan_folder_path'] = $item_data_folder;
-  
-	  $files = $this->container['scan_folder'];
-  
+	  // Will hold the overall reading results of each individual item data.
 	  $result = array();
-	  foreach ($files as $file_object) {
-		if ($file_object->isFile()) {
-		  $file_name = $file_object->getFilename();
-		  $file_full_path = "$item_data_folder/$file_name";
-  
-		  if (filesize($file_full_path) === 0) {
-			// File is empty. So, it goes straight into the fail's bin.
-			$print = 'O arquivo tah vazio.' . PHP_EOL;
-  
-			$item_data = array();
-			$this->set_sync_attempt_tag($item_data, $print);
-  
-			$this->scan_dados_fail($item_data, $subfolder_name, $file_name);
-			print $print;
-  
-			$this->delete_file($file_full_path);
-  
-			// Move on to next file.
-			break;
-		  }
-  
-		  $item_file_data = $this->container['ini_reader']
-			->fromFile($file_full_path);
-		  if ($item_file_data) {
-			$first_key = current(array_keys($item_file_data));
-	
-			if (is_array($item_file_data[$first_key])) {
-			  // There are more than one item in the file.
-			  foreach ($item_file_data as $item => $item_data) {
-				$this->scan_dados_item_data($item_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
+
+	  $this->container['scan_folder_path'] = $this->folders['dados'];
+	  $subfolders = $this->container['scan_folder'];
+
+	  foreach ($subfolders as $subfolder_object) {
+		if ($subfolder_object->isDir()) {
+		  $item_data_folder = $subfolder_object->getPath();
+		  $service = $subfolder_object->getBasename();
+
+		  // Check if current subfolder should be scanned.
+		  if (in_array($service, $this->sync_services())) {
+			$prime_id_field = $this->config['servicos'][$service]['prime_id_field'];
+			$secondary_id_field = $this->config['servicos'][$service]['secondary_id_fields'];
+
+			$this->container['scan_folder_path'] = $item_data_folder;
+			$files = $this->container['scan_folder'];
+	  
+			foreach ($files as $file_object) {
+			  if ($file_object->isFile()) {
+				$file_name = $file_object->getFilename();
+				$file_full_path = "$item_data_folder/$file_name";
+		
+				if (filesize($file_full_path) === 0) {
+				  // File is empty. So, it goes straight into the fail's bin.
+				  $item_data = array();
+				  $this->set_sync_attempt_tag($item_data, nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY);
+				  $this->move_item_data($item_data, $service, $file_name, nx::MOVE_ITEM_DATA_ACTION_FAIL);
+				  $this->delete_file($file_full_path);
+				  // Move on to next file.
+				  break;
+				}
+		
+				$item_file_data = $this->container['ini_reader']
+				  ->fromFile($file_full_path);
+				if ($item_file_data) {
+				  $first_key = current(array_keys($item_file_data));
+		  
+				  if (is_array($item_file_data[$first_key])) {
+					// There are more than one item in the file.
+					foreach ($item_file_data as $item => $item_data) {
+					  $this->scan_dados_item_data($item_data, $service, $file_name, $result);
+					}
+				  }
+				  else {
+					// There is only one item in the file.
+					$this->scan_dados_item_data($item_file_data, $service, $file_name, $result);
+				  }
+				}
+				else {
+				  $print = "Nao foi possivel carregar o arquivo $file_full_path." . PHP_EOL;
+				  print tools::color_msg(array($print), tools::COLOR_YELLOW);
+				  $this->log($print);
+				  $this->notify($print);
+		
+				  $tmp = $this->folders['tmp'];
+				  $move_to = "$tmp/falhas/$service/$file_name";
+				  // Move file to fail's bin.
+				  if (!rename($file_full_path, $move_to)) {
+					$print = "Nao foi possivel mover o arquivo $file_full_path para $move_to." . PHP_EOL;
+					print tools::color_msg(array($print), tools::COLOR_YELLOW);
+					$this->log($print);
+				  }
+				}
+		
+				// We are done with this file. By now its content should either be,
+				// partially or entirely, at the fail or success bin.
+				$this->delete_file($file_full_path);
 			  }
 			}
-			else {
-			  // There is only one item in the file.
-			  $this->scan_dados_item_data($item_file_data, $subfolder_name, $file_name, $prime_id_field_name, $secondary_id_field_names, $result);
-			}
 		  }
-		  else {
-			print $print = "Nao foi possivel carregar o arquivo $file_full_path." . PHP_EOL;
-			$this->log($print);
-  
-			$tmp = $this->folders['tmp'];
-			$move_to = "$tmp/falhas/$subfolder_name/$file_name";
-			// Move file to fail's bin.
-			if (!rename($file_full_path, $move_to)) {
-			  print $print = "Nao foi possivel mover o arquivo $file_full_path para $move_to." . PHP_EOL;
-			  $this->log($print);
-			}
-		  }
-  
-		  // We are done with this file. By now its content should either be,
-		  // partially or entirely, at the fail or success bin.
-		  $this->delete_file($file_full_path);
 		}
 	  }
-  
-	  if (!empty($result)) {
-		// 
+
+	  if (!empty($result['success'])) {
+		foreach ($result['success'] as $item) {
+		  $item_data = $item['item_data'];
+		  $file_name = $item['file_name'];
+
+		  $this->move_item_data($item_data, $service, $file_name, nx::MOVE_ITEM_DATA_ACTION_SUCCESS);
+		}
+	  }
+	  if (!empty($result['fail'])) {
+		// Send an email notification to the system admin.
+		$tmp_falhas = $this->folders['tmp'] . "/falhas/$service";
+		$tmp_logs = $this->folders['tmp'] . "/logs";
+		$msg = "A sincronização falhou. Verifique as pastas:" . PHP_EOL;
+		$msg .= "a) $tmp_falhas" . PHP_EOL;
+		$msg .= "b) $tmp_logs" . PHP_EOL;
+		$this->notify($msg);
+
+		foreach ($result['fail'] as $item) {
+		  $item_data = $item['item_data'];
+		  $file_name = $item['file_name'];
+
+		  $this->move_item_data($item_data, $service, $file_name, nx::MOVE_ITEM_DATA_ACTION_FAIL);
+		}
 	  }
 	}
   }
@@ -734,19 +759,25 @@ class nx {
    * @param String $file_name
    *   The original file name.
    *
-   * @param String $prime_id_field_name
-   *   See scan_dados_folder().
-   *
-   * @param Array $secondary_id_field_names
-   *   See scan_dados_folder().
-   *
+   * @param Array $result
+   *   Holds the overall reading results of each item data.
    */
-  private function scan_dados_item_data($item_data, $service, $file_name, $prime_id_field_name, $secondary_id_field_names, &$result) {
+  private function scan_dados_item_data($item_data, $service, $file_name, &$result) {
+	$prime_id_field = $this->config['servicos'][$service]['prime_id_field'];
+	$secondary_id_field = $this->config['servicos'][$service]['secondary_id_fields'];
+	$result_array = array(
+	  'item_data' => $item_data,
+	  'file_name' => $file_name,
+	);
+
 	$create = TRUE;
-	if (!isset($item_data[$prime_id_field_name])) {
-	  // Try to retrive the item from the webservice using the
-	  // $secondary_id_field_names.
-	  foreach($secondary_id_field_names as $secondary_field_name) {
+	if (isset($item_data[$prime_id_field])) {
+	  $create = FALSE;
+	}
+	else {
+	  // Try to retrive the item from the webservice using a
+	  // secondary id field.
+	  foreach($secondary_id_field as $secondary_field_name) {
 		if (isset($item_data[$secondary_field_name])) {
 		  $item_id = $item_data[$secondary_field_name];
 
@@ -755,48 +786,30 @@ class nx {
 			$item_exists = $this->{$method_name}($item_id, FALSE);
 
 			if ($item_exists) {
+			  // We found a secundary id value in the item data.
 			  $create = FALSE;
-
-			  // This item already exists at the webservice, so lets update it.
-			  $update_ok = $this->update($item_data, $service);
-			  $this->set_sync_attempt_tag($item_data, $service, $create);
-
-			  if ($update_ok) {
-				$result['success'][] = array(
-				  'item_data' => $item_data,
-				  'file_name' => $file_name,
-				);
-				return TRUE;
-			  }
-
-			  $result['fail'][] = array(
-				'item_data' => $item_data,
-				'file_name' => $file_name,
-			  );
-			  return FALSE;
+			  // Stop looping and we go on.
+			  break;
 			}
-		  }
-		  else {
-			print $print = "O metodo $method_name NAO existe." . PHP_EOL;
-			$this->log($print);
 		  }
 		}
 	  }
 	}
 
 	if ($create) {
-	  $create_ok = $this->create($item_data, $service);
-	  $this->set_sync_attempt_tag($item_data, $service, $create);
+	  $sync_ok = $this->request($service, $item_data, 'post');
+	}
+	else {
+	  // Update.
+	  $sync_ok = $this->request($service, $item_data, 'put', "/atualizar");
+	}
 
-	  if ($create_ok) {
-		$result['success'][] = array(
-		  'item_data' => $item_data,
-		  'file_name' => $file_name,
-		);
-		return TRUE;
-	  }
-
-	  $result['fail'][] = $item_data;
+	$this->set_sync_attempt_tag($item_data, nx::SYNC_TAG_ACTION_UPDATE);
+	if ($sync_ok) {
+	  $result['success'][] = $result_array;
+	}
+	else {
+	  $result['fail'][] = $result_array;
 	}
   }
 
@@ -806,22 +819,34 @@ class nx {
    * @param Array $item_data
    *   See scan_dados_item_data().
    *
+   * @param Bool $action
+   *   Which action has been performed. CREATE/UPDATE or FAIL.
+   *
    * @param String $service
    *   The service name.
-   *
-   * @param Bool $create
-   *   Whether the item was created or updated.
    */
-  private function set_sync_attempt_tag(&$item_data, $service = FALSE, $create = null) {
-	if ($service) {
-	  $msg = 'atualizado';
-	  if ($create) {
-		$msg = 'criado';
-	  }
-	  $msg = "Item foi $msg com sucesso no servico $service.";
-	}
-	else {
-	  $msg = $service;
+  private function set_sync_attempt_tag(&$item_data, $action, $service = 'produto') {
+	switch($action) {
+	  case nx::SYNC_TAG_ACTION_CREATE:
+		$msg = "Item foi criado com sucesso no servico em $service.";
+		print tools::color_msg(array($msg), tools::COLOR_GREEN);
+	  break;
+	  case nx::SYNC_TAG_ACTION_UPDATE:
+		$msg = "Item foi atualizado com sucesso no servico em $service.";
+		print tools::color_msg(array($msg), tools::COLOR_GREEN);
+	  break;
+	  case nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY:
+		$msg = "O arquivo dados estava vazio.";
+		print tools::color_msg(array($msg), tools::COLOR_YELLOW);
+	  break;
+	  case nx::SYNC_TAG_ACTION_FAIL:
+		$msg = "Algo saiu errado. O arquivo de dados eh invalido.";
+		print tools::color_msg(array($msg), tools::COLOR_YELLOW);
+	  break;
+	  default:
+		$msg = "O valor do parametro \$action eh invalido. Entre em contado com a NortaoX.";
+		$this->log($msg);
+		throw new \InvalidArgumentException(tools::color_msg(array($msg), tools::COLOR_RED));
 	}
 
 	$attempts = 1;
@@ -829,7 +854,8 @@ class nx {
 	  $attempts += $item_data['-sincronizacao-']['tentativas'];
 	}
 
-	$date_time = $this->container['date_time_ymd-his'];
+	$this->container['date_format'] = "Y-m-d H:i:s";
+	$date_time = $this->container['date_time'];
 
 	$item_data['-sincronizacao-'] = array(
 	  'tentativas' => $attempts,
@@ -839,23 +865,35 @@ class nx {
   }
 
   /**
+   * Moves the item data collected from dados folder to either
+   * tmp/falhas or tmp/sucessos folder.
    *
-   */
-  private function scan_dados_fail($file_data, $subfolder_name, $file_name) {
-	$tmp = $this->folders['tmp'];
-	$falhas_folder = "$tmp/falhas/$subfolder_name";
-	$file_full_path = "$falhas_folder/$file_name";
-
-	
-  }
-
-  /**
+   * @param Array $item_data
+   *   The data array.
    *
+   * @param String $service
+   *   The service name.
+   *
+   * @param String $file_name
+   *   The file name which the data will be saved in.
+   *
+   * @param String $action
+   *   Expects either "falhas" or "sucessos"
    */
-  private function scan_dados_success($file_data, $subfolder_name, $file_name) {
+  private function move_item_data($item_data, $service, $file_name, $action) {
 	$tmp = $this->folders['tmp'];
-	$sucessos_folder = "$tmp/sucessos/$subfolder_name";
-	
+	$destination_folder = "$tmp/$action/$service";
+	$file_full_path = "$destination_folder/$file_name";
+
+	try {
+	  $writer = $this->container['ini_writer'];
+	  $writer->toFile($file_full_path, (array) $item_data);
+	}
+	catch(Exception $e) {
+	  $print = "Nao foi possivel salvar o arquivo $file_full_path." . PHP_EOL;
+	  print tools::color_msg(array($print), tools::COLOR_RED);
+	  $this->log($print);
+	}
   }
 
   /**
@@ -898,14 +936,13 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_pedido_by_number($order_number) {
+  public function get_pedido_by_number($order_number, $save_result = TRUE) {
 	$qs = array('no' => $order_number);
 	$request = $this->retrieve_service_item($qs, 'pedido', '');
 
-	if ($request) {
+	if ($request && $save_result) {
 	  $this->save_retrieved_result("pedido_no_$order_number");
 	}
-
 	return $request;
   }
 
@@ -922,14 +959,13 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_produto_by_product_id($product_id) {
+  public function get_produto_by_product_id($product_id, $save_result = TRUE) {
 	$qs = array('product_id' => $product_id);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request) {
+	if ($request && $save_result) {
 	  $this->save_retrieved_result("produto_product_id_$product_id");
 	}
-
 	return $request;
   }
 
@@ -946,14 +982,13 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_produto_by_sku($sku) {
+  public function get_produto_by_sku($sku, $save_result = TRUE) {
 	$qs = array('sku' => $sku);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request) {
+	if ($request && $save_result) {
 	  $this->save_retrieved_result("produto_sku_$sku");
 	}
-
 	return $request;
   }
 
@@ -970,35 +1005,24 @@ class nx {
    * @return Bool
    *   Whether or not the request was successful.
    */
-  public function get_produto_by_cod_produto_erp($cod_produto_erp) {
+  public function get_produto_by_cod_produto_erp($cod_produto_erp, $save_result = TRUE) {
 	$qs = array('cod_produto_erp' => $cod_produto_erp);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request) {
+	if ($request && $save_result) {
 	  $this->save_retrieved_result("produto_cod_produto_erp_$cod_produto_erp");
 	}
-
 	return $request;
   }
 
   /**
    * Retrieves a list of cities which NortaoX is or will trade in.
-   *
-   * @param Bool $save_result
-   *   Whether or not the result content should be saved into
-   *   dados/consulta folder.
-   *
-   * @return Bool
-   *   Whether or not the request was successful.
    */
   public function get_cities() {
 	$request = $this->request('cidades', '', 'get');
 
 	if ($request) {
 	  $this->save_retrieved_result('cidades');
-	}
-	else {
-	  print "Algo saiu errado." . PHP_EOL;
 	}
   }
 
@@ -1017,10 +1041,11 @@ class nx {
 	  $writer = $this->container['ini_writer'];
 	  $writer->toFile($file_full_path, (array) $item);
 
-	  print "Consulta foi salva em $file_full_path" . PHP_EOL;
+	  print tools::color_msg(array("Consulta foi salva em $file_full_path" . PHP_EOL), tools::COLOR_GREEN);
 	}
 	catch(Exception $e) {
-	  print $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
+	  $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
+	  print tools::color_msg(array($print), tools::COLOR_RED);
 	  $this->log($print);
 	}
   }
