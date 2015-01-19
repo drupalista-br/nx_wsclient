@@ -57,24 +57,19 @@ class nx {
    * Initial Constructor.
    */
   public function __construct() {
-	$this->internet_connection();
 	$root_folder = pathinfo(__DIR__);
 	$this->root_folder = dirname($root_folder['dirname']);
 
-	// External dependencies container.
 	$this->bootstrap_container();
   }
 
   /**
    * Bootstraps the app's essential configurations.
-   * 
-   * @param Bool $is_dev
-   *   Whether or not this is a dev machine which has a local webservices
-   *   server.
    */
-  public function bootstrap($is_dev = FALSE) {
+  public function bootstrap() {
+	$this->bootstrap_internet_connection();
 	// Loads the config.ini and do basic validation on it.
-	$this->bootstrap_config($is_dev);
+	$this->bootstrap_config();
 	// Loads the merchant session credentials and token for webservice
 	// request authentication.
 	$this->bootstrap_merchant_login();
@@ -163,8 +158,16 @@ class nx {
 	$container['scan_folder'] = function($c) {
 	  return new FilesystemIterator($c['scan_folder_path']);
 	};
+	
+    $container['internet_connection_google'] = 'www.google.com';
+	$container['internet_connection_nortaox'] = 'loja.nortaox.com';
 
-	$container['config'] = $this->set_config($container);
+	$container['config_producao_uri'] = 'https://loja.nortaox.com/api';
+	$container['config_sandbox_uri'] = 'http://loja.nortaoxsandbox.tk/api';
+	$container['config_file_location'] = $this->root_folder . "/config.ini";
+	$container['config'] = function($c) {
+	  return $this->set_config($c);;
+	};
 
 	$this->container = $container;
   }
@@ -182,9 +185,8 @@ class nx {
 	$config = array(
 	  'ambiente' => 'producao',
 	  'endpoint' => array(
-		'sandbox' => 'http://loja.nortaoxsandbox.tk/api',
-		'producao' => 'https://loja.nortaox.com/api',
-		'dev' => 'http://loja.nortaox.local/api',
+		'sandbox' => $c['config_sandbox_uri'],
+		'producao' => $c['config_producao_uri'],
 	  ),
 	  'servicos' => array(
 		'login' => array(
@@ -208,7 +210,7 @@ class nx {
 	  ),
 	);
 
-	$config_file = $this->root_folder . "/config.ini";
+	$config_file = $c['config_file_location'];
 
 	if (!file_exists($config_file)) {
 	  throw new Exception(tools::print_red("O arquivo $config_file nao existe."));
@@ -242,7 +244,7 @@ class nx {
   /**
    * Load the config.ini and do basic validation on it.
    */
-  private function bootstrap_config($is_dev) {
+  private function bootstrap_config() {
 	$current_date = $this->container['date_time'];
 
 	$this->config = $config = $this->container['config'];
@@ -250,18 +252,14 @@ class nx {
 	$this->set_folders();
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
 
-	if ($is_dev) {
-	  $env = 'dev';
-	}
-	else {
-	  $valid_envs = array('producao', 'sandbox');
-	  $env = $config['ambiente'];
-  
-	  if (!in_array($env, $valid_envs)) {
-		$print = "O valor $env para ambiente eh invalido.";
-		$this->log($print);
-		throw new Exception(tools::print_red($print));
-	  }
+
+	$valid_envs = array('producao', 'sandbox');
+	$env = $config['ambiente'];
+
+	if (!in_array($env, $valid_envs)) {
+	  $print = "O valor '$env' para ambiente eh invalido.";
+	  $this->log($print);
+	  throw new Exception(tools::print_red($print));
 	}
 
 	$this->endpoint = $config['endpoint'][$env];
@@ -272,8 +270,17 @@ class nx {
    *
    * @param String $msg
    *   Message to log.
+   *
+   * @param String $color
+   *   If sent, it will print out the message on terminal console
+   *   of the color declared.
    */
-  private function log($msg) {
+  private function log($msg, $color = '') {
+	if (!empty($color)) {
+	  $method_name = "print_$color";
+	  tools::$method_name($msg);
+	}
+
 	if (!empty($this->log_file)) {
 	  $log_file = $this->log_file;
 
@@ -309,9 +316,7 @@ class nx {
 	}
 	catch(Exception $e) {
 	  $msg = $e->getMessage();
-	  $print = "Algo deu errado. $msg";
-	  tools::print_red($print);
-	  $this->log($print);
+	  $this->log("Algo deu errado. $msg", 'red');
 	}
   }
 
@@ -321,9 +326,10 @@ class nx {
    * Checks the internet connection status.
    * Tries a handshake with Google's SMTP server.
    */
-  public function check($is_dev = FALSE) {
+  public function check() {
+	$this->bootstrap_internet_connection();
 	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
-	  $this->bootstrap_config($is_dev);
+	  $this->bootstrap_config();
 	  $uri = $this->endpoint;
   
 	  $this->container['request_method'] = 'get';
@@ -343,11 +349,11 @@ class nx {
 	  try {
 		$transport = $this->container['email_transport'];
 		$transport->handshake();
-		tools::print_green("O servidor do gmail respondeu Ok. As credencais do email %email sao validas.", array('%email' => $email));
+		tools::print_green("O servidor do gmail respondeu Ok. As credenciais do email %email sao validas.", array('%email' => $email));
 	  }
 	  catch(Exception $e){
 		$msg = $e->getMessage();
-		tools::print_red("Algo deu errado ao tentar verificar as credenciais para o email %email. $msg", array('%email' => $email));
+		tools::print_red("Algo deu errado ao tentar verificar as credenciais para o email %email. O Gmail respondeu o seguinte:" . PHP_EOL . $msg, array('%email' => $email));
 	  }
 	}
   }
@@ -355,9 +361,12 @@ class nx {
   /**
    * Checks the current internet connection status.
    */
-  public function internet_connection() {
-    $google = @fsockopen("www.google.com", 80);
-	$nortaox = @fsockopen("loja.nortaox.com", 80);
+  public function bootstrap_internet_connection() {
+    $google = $this->container['internet_connection_google'];
+	$nortaox = $this->container['internet_connection_nortaox'];
+
+    $google = @fsockopen($google, 80);
+	$nortaox = @fsockopen($nortaox, 80);
 
 	if ($google && $nortaox || !$google && $nortaox) {
 	  tools::print_green("A internet esta acessivel e o website da %nortaox esta responsivo.", array('%nortaox' => 'NortaoX.com'));
@@ -369,18 +378,14 @@ class nx {
 	}
 
 	if ($google && !$nortaox) {
-	  $print = "A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo. Tente mais tarde.";
-	  tools::print_yellow($print);
 	  $this->internet_connection = nx::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
-	  $this->log($print);
+	  $this->log("A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo. Tente mais tarde.", 'yellow');
 	  fclose($google);
 	}
 
 	if (!$google && !$nortaox) {
-	  $print = "NAO ha conexao com a internet.";
-	  tools::print_red($print);
 	  $this->internet_connection = nx::INTERNET_CONNECTION_DOWN;
-	  $this->log($print);
+	  $this->log("NAO ha conexao com a internet.", 'red');
 	}
   }
 
@@ -463,7 +468,7 @@ class nx {
 		$password = $this->config['credenciais']['password'];
   
 		$uri = "$endpoint/$service";
-  
+
 		try{
 		  $this->container['request_method'] = 'post';
 		  $this->container['request_uri'] = $uri;
@@ -499,9 +504,8 @@ class nx {
 		  $http_code = $this->response_code;
 		  $print = "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
 		  $print .= $this->response_error_msg;
-		  tools::print_red($print);
 
-		  $this->log($print);
+		  $this->log($print, 'red');
 		}
 	  }
 	}
@@ -582,8 +586,7 @@ class nx {
 		$print .= "O Webservice respondeu o seguinte:" . PHP_EOL;
 		$print .= $body;
 	  }
-	  tools::print_red($print);
-	  $this->log($print);
+	  $this->log($print, 'red');
 
 	  return FALSE;
 	}
@@ -630,9 +633,7 @@ class nx {
   private function delete_file($file_full_path) {
 	if (file_exists($file_full_path)) {
 	  if (!unlink($file_full_path)) {
-		$print = "Nao foi possivel deletar o arquivo $file_full_path.";
-		tools::print_red($print);
-		$this->log($print);
+		$this->log("Nao foi possivel deletar o arquivo $file_full_path.", 'red');
 	  }
 	}
   }
@@ -696,17 +697,14 @@ class nx {
 				}
 				else {
 				  $print = "Nao foi possivel carregar o arquivo $file_full_path.";
-				  tools::print_yellow($print);
-				  $this->log($print);
+				  $this->log($print, 'yellow');
 				  $this->notify($print);
 		
 				  $tmp = $this->folders['tmp'];
 				  $move_to = "$tmp/falhas/$service/$file_name";
 				  // Move file to fail's bin.
 				  if (!rename($file_full_path, $move_to)) {
-					$print = "Nao foi possivel mover o arquivo $file_full_path para $move_to." . PHP_EOL;
-					tools::print_yellow($print);
-					$this->log($print);
+					$this->log("Nao foi possivel mover o arquivo $file_full_path para $move_to.", 'yellow');
 				  }
 				}
 		
@@ -733,8 +731,9 @@ class nx {
 		$tmp_logs = $this->folders['tmp'] . "/logs";
 		$msg = "A sincronização falhou. Verifique as pastas:" . PHP_EOL;
 		$msg .= "a) $tmp_falhas" . PHP_EOL;
-		$msg .= "b) $tmp_logs" . PHP_EOL;
+		$msg .= "b) $tmp_logs";
 		$this->notify($msg);
+		$this->log($msg);
 
 		foreach ($result['fail'] as $item) {
 		  $item_data = $item['item_data'];
@@ -888,9 +887,7 @@ class nx {
 	  $writer->toFile($file_full_path, (array) $item_data, $this->container['ini_writer_lock']);
 	}
 	catch(Exception $e) {
-	  $print = "Nao foi possivel salvar o arquivo $file_full_path.";
-	  tools::print_red($print);
-	  $this->log($print);
+	  $this->log("Nao foi possivel salvar o arquivo $file_full_path.", 'red');
 	}
   }
 
@@ -1042,9 +1039,7 @@ class nx {
 	  tools::print_green("Consulta foi salva em %file_full_path", array('%file_full_path' => $file_full_path));
 	}
 	catch(Exception $e) {
-	  $print = "Nao foi possivel salvar a consulta em $file_full_path.";
-	  tools::print_red($print);
-	  $this->log($print);
+	  $this->log("Nao foi possivel salvar a consulta em $file_full_path.", 'red');
 	}
   }
 }

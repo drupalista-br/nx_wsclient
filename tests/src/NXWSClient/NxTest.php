@@ -25,17 +25,58 @@ class NxTest extends NxTestCase {
 	$this->nx->root_folder = vfsStream::url('home');
 	// See issue at https://github.com/mikey179/vfsStream/issues/44
 	$this->nx->container['ini_writer_lock'] = FALSE;
-	$this->nx->internet_connection = nx::INTERNET_CONNECTION_OK;
+
+	// Make sure internet is accessible.
+	$this->nx->container['internet_connection_google'] = 'localhost';
+	$this->nx->container['internet_connection_nortaox'] = 'localhost';
+
+	$this->nx->container['config_producao_uri'] = 'http://loja.nortaox.local/api';
   }
 
   public function testBootstrapMethodNoSessionFileSetAndInternetConnectionOk() {
-	$this->expectOutPutRegex("/Login do usuario /");
-	$this->expectOutPutRegex("/foi bem sucessido./");
+	$nx = $this->nx;
 
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('merchant_login');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+	
+	$this->assertTrue(empty($this->unlockObj['session']));
+	$this->assertTrue(empty($this->unlockObj['token']));
+
+	$nx->bootstrap(TRUE);
+
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('merchant_login');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+
+	$this->assertFalse(empty($this->unlockObj['session']));
+	$this->assertFalse(empty($this->unlockObj['token']));
+  }
+
+  public function testBootstrapMethodFromSessionFileSetAndInternetConnectionOk() {
+	// Create the session file.
 	$nx = $this->nx;
 	$nx->bootstrap(TRUE);
+
+	$this->unlockObj = $nx;
+	$this->unlockSetProperty('merchant_login');
+	$this->unlockSetPropertyAction('return');
+	$this->unlock();
+
+	$session_before = $this->unlockObj['session'];
+	$token_before = $this->unlockObj['token'];
+
+	$this->assertFalse(empty($this->unlockObj['session']));
+	$this->assertFalse(empty($this->unlockObj['token']));
+
+	// Use session file.
+	$nx->bootstrap(TRUE);
+
+	$this->assertTrue($session_before == $this->unlockObj['session']);
+	$this->assertTrue($token_before == $this->unlockObj['token']);
   }
-  
 
   /*function testLogMethod() {
 	$output = "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
