@@ -112,6 +112,7 @@ class nx {
 	};
 
 	// Ini file writer.
+	$container['ini_writer_lock'] = TRUE;
 	$container['ini_writer'] = function($c) {
 	  return new IniWriter();
 	};
@@ -210,7 +211,7 @@ class nx {
 	$config_file = $this->root_folder . "/config.ini";
 
 	if (!file_exists($config_file)) {
-	  throw new Exception(tools::color_msg(array("O arquivo $config_file nao existe." . PHP_EOL), tools::COLOR_RED));
+	  throw new Exception(tools::print_red("O arquivo $config_file nao existe."));
 	}
 
 	$config_file = $c['ini_reader']
@@ -229,7 +230,7 @@ class nx {
 	if (!isset($config_file['servidor_smtp']) ||
 		!isset($config_file['notificar']) ||
 		!isset($config_file['credenciais'])) {
-	  throw new Exception(tools::color_msg(array("Tem algo errado no arquivo de configuracao $config_file." . PHP_EOL), tools::COLOR_RED));
+	  throw new Exception(tools::print_red("Tem algo errado no arquivo de configuracao $config_file."));
 	}
 	$config['servidor_smtp'] = $config_file['servidor_smtp'];
 	$config['notificar'] = $config_file['notificar'];
@@ -257,10 +258,9 @@ class nx {
 	  $env = $config['ambiente'];
   
 	  if (!in_array($env, $valid_envs)) {
-		$print = "O valor $env para ambiente eh invalido." . PHP_EOL;
-		print tools::color_msg(array($print), tools::COLOR_RED);
+		$print = "O valor $env para ambiente eh invalido.";
 		$this->log($print);
-		throw new Exception($print);
+		throw new Exception(tools::print_red($print));
 	  }
 	}
 
@@ -281,7 +281,7 @@ class nx {
 	  $time = $this->container['date_time'];
 
 	  $log = "----$time----" . PHP_EOL;
-	  $log .= $msg;
+	  $log .= $msg . PHP_EOL;
 
 	  file_put_contents($log_file, $log, FILE_APPEND);
 	}
@@ -305,12 +305,12 @@ class nx {
 
 	try {
 	  $transport->send($message);
-	  print tools::color_msg(array("Foi enviado uma notificacao por Email ao administrador do sistema." . PHP_EOL), tools::COLOR_YELLOW);
+	  tools::print_yellow("Foi enviado uma notificacao por Email ao administrador do sistema.");
 	}
 	catch(Exception $e) {
 	  $msg = $e->getMessage();
-	  $print = "Algo deu errado. $msg" . PHP_EOL;
-	  print tools::color_msg(array($print), tools::COLOR_RED);
+	  $print = "Algo deu errado. $msg";
+	  tools::print_red($print);
 	  $this->log($print);
 	}
   }
@@ -334,7 +334,7 @@ class nx {
 	  $endpoint_ok = $this->response_code($request, $uri);
   
 	  if ($endpoint_ok) {
-		print tools::color_msg(array("Endpoint $uri esta acessivel." . PHP_EOL), tools::COLOR_GREEN);
+		tools::print_green("Endpoint %uri esta acessivel.", array('%uri' => $uri));
 	  }
   
 	  $this->set_folders(TRUE);
@@ -343,11 +343,11 @@ class nx {
 	  try {
 		$transport = $this->container['email_transport'];
 		$transport->handshake();
-		print tools::color_msg(array("O servidor do gmail respondeu Ok. As credencais do email $email sao validas." . PHP_EOL), tools::COLOR_GREEN);
+		tools::print_green("O servidor do gmail respondeu Ok. As credencais do email %email sao validas.", array('%email' => $email));
 	  }
 	  catch(Exception $e){
 		$msg = $e->getMessage();
-		print tools::color_msg(array("Algo deu errado ao tentar verificar as credenciais para o email $email. $msg" . PHP_EOL), tools::COLOR_RED);
+		tools::print_red("Algo deu errado ao tentar verificar as credenciais para o email %email. $msg", array('%email' => $email));
 	  }
 	}
   }
@@ -360,7 +360,7 @@ class nx {
 	$nortaox = @fsockopen("loja.nortaox.com", 80);
 
 	if ($google && $nortaox || !$google && $nortaox) {
-	  print tools::color_msg(array("A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL), tools::COLOR_GREEN);
+	  tools::print_green("A internet esta acessivel e o website da %nortaox esta responsivo.", array('%nortaox' => 'NortaoX.com'));
 	  $this->internet_connection = nx::INTERNET_CONNECTION_OK;
 	  fclose($nortaox);
 	  if ($google) {
@@ -369,16 +369,16 @@ class nx {
 	}
 
 	if ($google && !$nortaox) {
-	  $print = "A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo. Tente mais tarde." . PHP_EOL;
-	  print tools::color_msg(array($print), tools::COLOR_YELLOW);
+	  $print = "A internet esta acessivel mas o website da NortaoX.com NAO esta responsivo. Tente mais tarde.";
+	  tools::print_yellow($print);
 	  $this->internet_connection = nx::INTERNET_CONNECTION_UP_NORTAOX_DOWN;
 	  $this->log($print);
 	  fclose($google);
 	}
 
 	if (!$google && !$nortaox) {
-	  $print = "NAO ha conexao com a internet." . PHP_EOL;
-	  print tools::color_msg(array($print), tools::COLOR_RED);
+	  $print = "NAO ha conexao com a internet.";
+	  tools::print_red($print);
 	  $this->internet_connection = nx::INTERNET_CONNECTION_DOWN;
 	  $this->log($print);
 	}
@@ -413,22 +413,22 @@ class nx {
 			$mkdir = mkdir($full_subfolder_path, 0777, TRUE);
 		  }
 
-		  if (!$mkdir || !is_writable($full_subfolder_path)) {
+		  if (!$mkdir || !is_writable($folder_path)) {
 			$error_msgs[] = $full_subfolder_path;
 		  }
 		}
 	  }
 
 	  if ($error_msgs) {
-		print tools::color_msg(array("Nao foi possivel criar ou nao eh possivel gravar arquivos dentro das seguintes pastas:" . PHP_EOL), tools::COLOR_RED);
+		tools::print_red("Nao foi possivel criar ou nao eh possivel gravar arquivos dentro das seguintes pastas:");
 		foreach ($error_msgs as $error_number => $msg) {
 		  print $error_number + 1 . ". $msg" . PHP_EOL;
 		}
-		throw new Exception("--Verifique as permissoes do usuario--" . PHP_EOL);
+		throw new Exception(tools::print_yellow("--Verifique as permissoes do usuario--"));
 	  }
 	}
 	if ($check) {
-	  print tools::color_msg(array("As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL), tools::COLOR_GREEN);
+	  tools::print_green("As pastas dados, tmp e suas subpastas foram criadas com sucesso.");
 	}
   }
 
@@ -454,7 +454,7 @@ class nx {
 		$this->merchant_login['session'] = $session['session'];
 		$this->merchant_login['token'] = $session['token'];
   
-		print tools::color_msg(array("Credenciais para o usuario $username foram carregadas a partir de arquivo de sessao." . PHP_EOL), tools::COLOR_GREEN);
+		tools::print_green("Credenciais para o usuario %username foram carregadas a partir de arquivo de sessao.", array('%username' => $username));
 	  }
 	  else {
 		// Request merchant authentication.
@@ -480,26 +480,26 @@ class nx {
 		}
   
 		if ($response_ok) {
-		  $sessid = $request->body->sessid;
+		  $session_id = $request->body->sessid;
 		  $session_name = $request->body->session_name;
-	
+
 		  $session = array();
-		  $this->merchant_login['session'] = $session['session'] = "$session_name=$sessid";
+		  $this->merchant_login['session'] = $session['session'] = "$session_name=$session_id";
 		  $this->merchant_login['token'] = $session['token'] = $request->body->token;
-  
+
 		  $writer = $this->container['ini_writer'];
-		  $writer->toFile($session_file, $session);
-  
-		  print tools::color_msg(array("Login do usuario $username foi bem sucessido." . PHP_EOL), tools::COLOR_GREEN);
+		  $writer->toFile($session_file, $session, $this->container['ini_writer_lock']);
+
+		  tools::print_green("Login do usuario %username foi bem sucessido.", array('%username' => $username));
 		  if ($reset) {
-			print tools::color_msg(array("Novo token foi salvo com sucesso." . PHP_EOL), tools::COLOR_GREEN);
+			tools::print_green("Novo token foi salvo com sucesso.");
 		  }
 		}
 		else {
 		  $http_code = $this->response_code;
 		  $print = "Algo saiu errado. Codigo HTTP: $http_code" . PHP_EOL;
 		  $print .= $this->response_error_msg;
-		  print tools::color_msg(array($print), tools::COLOR_RED);
+		  tools::print_red($print);
 
 		  $this->log($print);
 		}
@@ -526,34 +526,36 @@ class nx {
    *   Whether or not the request was successful.
    */
   private function request($service, $item_data, $http_method, $service_method = '') {
-	$endpoint = $this->endpoint;
-	$service = $this->config['servicos'][$service]['url'];
-
-	$uri = "$endpoint/$service" . $service_method;
-
-	try {
-	  $this->container['request_method'] = $http_method;
-	  $this->container['request_uri'] = $uri;
-	  $request = $this->container['request']
-		->sendsJson()
-		->expectsJson()
-		->addHeader('Cookie', $this->merchant_login['session'])
-		->addHeader('X-CSRF-Token', $this->merchant_login['token'])
-		->body($item_data)
-		->send();
-
-	  $response_ok = $this->response_code($request, $uri);
+	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
+	  $endpoint = $this->endpoint;
+	  $service = $this->config['servicos'][$service]['url'];
+  
+	  $uri = "$endpoint/$service" . $service_method;
+  
+	  try {
+		$this->container['request_method'] = $http_method;
+		$this->container['request_uri'] = $uri;
+		$request = $this->container['request']
+		  ->sendsJson()
+		  ->expectsJson()
+		  ->addHeader('Cookie', $this->merchant_login['session'])
+		  ->addHeader('X-CSRF-Token', $this->merchant_login['token'])
+		  ->body($item_data)
+		  ->send();
+  
+		$response_ok = $this->response_code($request, $uri);
+	  }
+	  catch (Exception $e) {
+		$this->response_error_msg = $e->getMessage();
+		$this->response_code = 500;
+		$response_ok = FALSE;
+	  }
+  
+	  if ($response_ok) {
+		$this->response_body_json = $request->raw_body;
+	  }
+	  return $response_ok;
 	}
-	catch (Exception $e) {
-	  $this->response_error_msg = $e->getMessage();
-	  $this->response_code = 500;
-	  $response_ok = FALSE;
-	}
-
-	if ($response_ok) {
-	  $this->response_body_json = $request->raw_body;
-	}
-	return $response_ok;
   }
 
   /**
@@ -578,9 +580,9 @@ class nx {
 	  $print = "A chamada ao Endpoint $uri FALHOU. Retornou o Codigo de Status HTTP $code." . PHP_EOL;
 	  if (!empty($body)) {
 		$print .= "O Webservice respondeu o seguinte:" . PHP_EOL;
-		$print .= $body . PHP_EOL;
+		$print .= $body;
 	  }
-	  print tools::color_msg(array($print), tools::COLOR_RED);
+	  tools::print_red($print);
 	  $this->log($print);
 
 	  return FALSE;
@@ -628,8 +630,8 @@ class nx {
   private function delete_file($file_full_path) {
 	if (file_exists($file_full_path)) {
 	  if (!unlink($file_full_path)) {
-		$print = "Nao foi possivel deletar o arquivo $file_full_path." . PHP_EOL;
-		print tools::color_msg(array($print), tools::COLOR_RED);
+		$print = "Nao foi possivel deletar o arquivo $file_full_path.";
+		tools::print_red($print);
 		$this->log($print);
 	  }
 	}
@@ -693,8 +695,8 @@ class nx {
 				  }
 				}
 				else {
-				  $print = "Nao foi possivel carregar o arquivo $file_full_path." . PHP_EOL;
-				  print tools::color_msg(array($print), tools::COLOR_YELLOW);
+				  $print = "Nao foi possivel carregar o arquivo $file_full_path.";
+				  tools::print_yellow($print);
 				  $this->log($print);
 				  $this->notify($print);
 		
@@ -703,7 +705,7 @@ class nx {
 				  // Move file to fail's bin.
 				  if (!rename($file_full_path, $move_to)) {
 					$print = "Nao foi possivel mover o arquivo $file_full_path para $move_to." . PHP_EOL;
-					print tools::color_msg(array($print), tools::COLOR_YELLOW);
+					tools::print_yellow($print);
 					$this->log($print);
 				  }
 				}
@@ -828,25 +830,21 @@ class nx {
   private function set_sync_attempt_tag(&$item_data, $action, $service = 'produto') {
 	switch($action) {
 	  case nx::SYNC_TAG_ACTION_CREATE:
-		$msg = "Item foi criado com sucesso no servico em $service.";
-		print tools::color_msg(array($msg), tools::COLOR_GREEN);
+		tools::print_green("Item foi %action com sucesso no servico %service.", array('%action' => 'criado', '%service' => $service));
 	  break;
 	  case nx::SYNC_TAG_ACTION_UPDATE:
-		$msg = "Item foi atualizado com sucesso no servico em $service.";
-		print tools::color_msg(array($msg), tools::COLOR_GREEN);
+		tools::print_green("Item foi %action com sucesso no servico %service.", array('%action' => 'atualizado', '%service' => $service));
 	  break;
 	  case nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY:
-		$msg = "O arquivo dados estava vazio.";
-		print tools::color_msg(array($msg), tools::COLOR_YELLOW);
+		tools::print_yellow("O arquivo dados estava vazio.");
 	  break;
 	  case nx::SYNC_TAG_ACTION_FAIL:
-		$msg = "Algo saiu errado. O arquivo de dados eh invalido.";
-		print tools::color_msg(array($msg), tools::COLOR_YELLOW);
+		tools::print_yellow("Algo saiu errado. O arquivo de dados eh invalido.");
 	  break;
 	  default:
 		$msg = "O valor do parametro \$action eh invalido. Entre em contado com a NortaoX.";
 		$this->log($msg);
-		throw new \InvalidArgumentException(tools::color_msg(array($msg), tools::COLOR_RED));
+		throw new \InvalidArgumentException(tools::print_red($msg));
 	}
 
 	$attempts = 1;
@@ -887,11 +885,11 @@ class nx {
 
 	try {
 	  $writer = $this->container['ini_writer'];
-	  $writer->toFile($file_full_path, (array) $item_data);
+	  $writer->toFile($file_full_path, (array) $item_data, $this->container['ini_writer_lock']);
 	}
 	catch(Exception $e) {
-	  $print = "Nao foi possivel salvar o arquivo $file_full_path." . PHP_EOL;
-	  print tools::color_msg(array($print), tools::COLOR_RED);
+	  $print = "Nao foi possivel salvar o arquivo $file_full_path.";
+	  tools::print_red($print);
 	  $this->log($print);
 	}
   }
@@ -1039,13 +1037,13 @@ class nx {
 
 	try {
 	  $writer = $this->container['ini_writer'];
-	  $writer->toFile($file_full_path, (array) $item);
+	  $writer->toFile($file_full_path, (array) $item, $this->container['ini_writer_lock']);
 
-	  print tools::color_msg(array("Consulta foi salva em $file_full_path" . PHP_EOL), tools::COLOR_GREEN);
+	  tools::print_green("Consulta foi salva em %file_full_path", array('%file_full_path' => $file_full_path));
 	}
 	catch(Exception $e) {
-	  $print = "Nao foi possivel salvar a consulta em $file_full_path." . PHP_EOL;
-	  print tools::color_msg(array($print), tools::COLOR_RED);
+	  $print = "Nao foi possivel salvar a consulta em $file_full_path.";
+	  tools::print_red($print);
 	  $this->log($print);
 	}
   }

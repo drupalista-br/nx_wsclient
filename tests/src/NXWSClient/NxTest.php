@@ -1,7 +1,8 @@
 <?php
 namespace NXWSClient\Test;
 
-use NXWSClient\nx,
+use NXWSClient\tools,
+	NXWSClient\nx,
 	NXWSClient\NxTestCase,
 	Httpful\Request,
 	org\bovigo\vfs\vfsStream,
@@ -14,19 +15,29 @@ $root_folder = dirname(dirname($pathinfo['dirname']));
 require_once "$root_folder/vendor/autoload.php";
 
 class NxTest extends NxTestCase {
-  public $root_folder;
+  public $nx;
   
   public function setUp() {
 	parent::setUp();
-
-	$pathinfo = pathinfo(__DIR__);
-	$root_folder = dirname(dirname($pathinfo['dirname']));
-	$this->root_folder = $root_folder;
-
 	vfsStream::setup('home');
+
+	$this->nx = new nx();
+	$this->nx->root_folder = vfsStream::url('home');
+	// See issue at https://github.com/mikey179/vfsStream/issues/44
+	$this->nx->container['ini_writer_lock'] = FALSE;
+	$this->nx->internet_connection = nx::INTERNET_CONNECTION_OK;
   }
 
-  function testLogMethod() {
+  public function testBootstrapMethodNoSessionFileSetAndInternetConnectionOk() {
+	$this->expectOutPutRegex("/Login do usuario /");
+	$this->expectOutPutRegex("/foi bem sucessido./");
+
+	$nx = $this->nx;
+	$nx->bootstrap(TRUE);
+  }
+  
+
+  /*function testLogMethod() {
 	$output = "A internet esta acessivel e o website da NortaoX.com esta responsivo." . PHP_EOL;
 	$output .= "Endpoint http://loja.nortaox.local/api esta acessivel." . PHP_EOL;
 	$output .= "As pastas dados, tmp e suas subpastas foram criadas com sucesso." . PHP_EOL;
@@ -47,6 +58,12 @@ class NxTest extends NxTestCase {
 	$nx->container['date_gis'] = $date_gis;
 	$nx->container['date_time_gis'] = function($c) {
 	  return $c['date_gis'];
+	};
+
+	$container['date_format'] = "Y-m-d";
+	$container['date_time'] = function($c) {
+	  $date = new DateTime();
+	  return $date->format($c['date_format']);
 	};
 
 	$nx->container['date_ymd'] = $date_ymd;
@@ -78,12 +95,7 @@ class NxTest extends NxTestCase {
 	$this->assertTrue(file_exists($log_file));
 	$this->assertTrue($file_content_prediction == $file_content);
 	unlink($log_file);
-  }
-
-  function testBootstrapMethodIsDevTrue() {
-	$nx = new nx();
-	$nx->bootstrap(TRUE);
-  }
+  }*/
 
   /*function testGetCitiesMethod() {
 	$root_folder = $this->root_folder;

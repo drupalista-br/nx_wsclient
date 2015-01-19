@@ -42,7 +42,9 @@ class tools {
       if (isset($msg[1]) && is_array($msg[1])) {
         // Replace placeholder values.
         foreach($msg[1] as $placeholder => $ph_value) {
-          $msg[0] = str_replace($placeholder, $ph_value . ${$color}, $msg[0]);
+          // Turn all text variables in blue.
+          $ph_value = $blue . $ph_value . ${$color};
+          $msg[0] = str_replace($placeholder, $ph_value, $msg[0]);
         }
       }
 
@@ -52,7 +54,40 @@ class tools {
       throw new Exception("$msg should be sent into an array.\n $warning_location");
     }
   }
-  
+
+  /**
+   * Print out a yellow message on the terminal console.
+   *
+   * @param String $msg
+   *   The message to be printed out.
+   *
+   * @param Array $place_holders
+   *   It's keys are the placeholders and it's values are the replacement
+   *   value.
+   *
+   * @return String
+   *   The color coded string.
+   */
+  static public function print_green($msg, $place_holders = array()) {
+    $msg .= PHP_EOL;
+    print tools::color_msg(array($msg, $place_holders), tools::COLOR_GREEN);
+  }
+
+  static public function print_yellow($msg, $place_holders = array()) {
+    $msg .= PHP_EOL;
+    print tools::color_msg(array($msg, $place_holders), tools::COLOR_YELLOW);
+  }
+
+  static public function print_red($msg, $place_holders = array()) {
+    $msg .= PHP_EOL;
+    print tools::color_msg(array($msg, $place_holders), tools::COLOR_RED);
+  }
+
+  static public function print_blue($msg, $place_holders = array()) {
+    $msg .= PHP_EOL;
+    print tools::color_msg(array($msg, $place_holders), tools::COLOR_BLUE);
+  }
+
   /**
    * Remove a folder recursively.
    *
