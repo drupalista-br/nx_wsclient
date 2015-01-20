@@ -26,7 +26,7 @@ class NxTest extends NxTestCase {
 	// See issue at https://github.com/mikey179/vfsStream/issues/44
 	$this->nx->container['ini_writer_lock'] = FALSE;
 
-	// Make sure internet is accessible.
+	// Make sure internet is accessible even when there is no internet.
 	$this->nx->container['internet_connection_google'] = 'localhost';
 	$this->nx->container['internet_connection_nortaox'] = 'localhost';
 
@@ -44,7 +44,7 @@ class NxTest extends NxTestCase {
 	$this->assertTrue(empty($this->unlockObj['session']));
 	$this->assertTrue(empty($this->unlockObj['token']));
 
-	$nx->bootstrap(TRUE);
+	$nx->bootstrap();
 
 	$this->unlockObj = $nx;
 	$this->unlockSetProperty('merchant_login');
@@ -58,7 +58,7 @@ class NxTest extends NxTestCase {
   public function testBootstrapMethodFromSessionFileSetAndInternetConnectionOk() {
 	// Create the session file.
 	$nx = $this->nx;
-	$nx->bootstrap(TRUE);
+	$nx->bootstrap();
 
 	$this->unlockObj = $nx;
 	$this->unlockSetProperty('merchant_login');
@@ -72,7 +72,7 @@ class NxTest extends NxTestCase {
 	$this->assertFalse(empty($this->unlockObj['token']));
 
 	// Use session file.
-	$nx->bootstrap(TRUE);
+	$nx->bootstrap();
 
 	$this->assertTrue($session_before == $this->unlockObj['session']);
 	$this->assertTrue($token_before == $this->unlockObj['token']);

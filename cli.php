@@ -12,8 +12,8 @@ use NXWSClient\tools;
 require_once "vendor/autoload.php";
 
 $nx = new nx();
-//$nx->container['internet_connection_google'] = 'localhost';
-//$nx->container['internet_connection_nortaox'] = 'localhost';
+$nx->container['internet_connection_google'] = 'localhost';
+$nx->container['internet_connection_nortaox'] = 'localhost';
 $nx->container['config_producao_uri'] = 'http://loja.nortaox.local/api';
-
-$nx->check();
+$nx->bootstrap();
+$nx->scan_dados_folder();
