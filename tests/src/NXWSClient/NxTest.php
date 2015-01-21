@@ -7,7 +7,8 @@ use NXWSClient\tools,
 	Httpful\Request,
 	org\bovigo\vfs\vfsStream,
 	Pimple\Container,
-	Zend\Config\Reader\Ini as IniReader;
+	Zend\Config\Reader\Ini as IniReader,
+	stdclass;
 
 $pathinfo = pathinfo(__DIR__);
 $root_folder = dirname(dirname($pathinfo['dirname']));
@@ -16,6 +17,7 @@ require_once "$root_folder/vendor/autoload.php";
 
 class NxTest extends NxTestCase {
   public $nx;
+  public $response_login;
   
   public function setUp() {
 	parent::setUp();
@@ -31,6 +33,15 @@ class NxTest extends NxTestCase {
 	$this->nx->container['internet_connection_nortaox'] = 'localhost';
 
 	$this->nx->container['config_producao_uri'] = 'http://loja.nortaox.local/api';
+
+	$this->response_login = new stdclass();
+	$this->response_login->raw_body = '{"sessid":"t8SphFm_tI68qeqJPXzyAaOcxLvsOKV11YGP4W30eLk","session_name":"SESSdd678b24d9cb922c1a48db93fe3ce2e7","token":"kczgr5yuI0JkfFus9MrIWWHMesabJiE6IUQLYwXpFi4","user":{"uid":"87","name":"Francisco Luz","mail":"drupalista.com.br@gmail.com","theme":"","signature":"","signature_format":"filtered_html","created":"1415747279","access":"1421795869","login":1421795893,"status":"1","timezone":"America/Cuiaba","language":"pt-br","picture":{"fid":"286","uid":"0","filename":"picture-87-1415747279.jpg","uri":"public://pictures/picture-87-1415747279.jpg","filemime":"application/octet-stream","filesize":"9007","status":"1","timestamp":"1415747279","type":"default","rdf_mapping":[],"url":"http://loja.nortaox.local/sites/loja.nortaox.com/files/pictures/picture-87-1415747279.jpg"},"data":{"hybridauth":{"identifier":"114344118552170824273","webSiteURL":null,"profileURL":"https://plus.google.com/114344118552170824273","photoURL":"https://lh6.googleusercontent.com/-nlf7IN6DkvY/AAAAAAAAAAI/AAAAAAAAAR0/KEoIJgf_PgI/photo.jpg?sz=200","displayName":"Francisco Luz","description":"","firstName":"Francisco","lastName":"Luz","gender":"other","language":"en","age":"","birthDay":0,"birthMonth":0,"birthYear":0,"email":"drupalista.com.br@gmail.com","emailVerified":"drupalista.com.br@gmail.com","phone":"","address":"Paranagu\u00e1, PR, Brazil","country":"","region":"","city":"Paranagu\u00e1, PR, Brazil","zip":"","provider":"Google"},"contact":1,"ckeditor_default":"t","ckeditor_show_toggle":"t","ckeditor_width":"100%","ckeditor_lang":"en","ckeditor_auto_lang":"t","overlay":1},"roles":{"2":"authenticated user","4":"merchant"},"rdf_mapping":{"rdftype":["sioc:UserAccount"],"name":{"predicates":["foaf:name"]},"homepage":{"predicates":["foaf:page"],"type":"rel"}},"realname":"Francisco Luz"}}';
+	$this->response_login->code = 200;
+	$this->response_login->body = new stdclass();
+	$this->response_login->body->sessid = 't8SphFm_tI68qeqJPXzyAaOcxLvsOKV11YGP4W30eLk';
+	$this->response_login->body->session_name = 'SESSdd678b24d9cb922c1a48db93fe3ce2e7';
+	$this->response_login->body->token = 'kczgr5yuI0JkfFus9MrIWWHMesabJiE6IUQLYwXpFi4';
+
   }
 
   public function testBootstrapMethodNoSessionFileSetAndInternetConnectionOk() {
@@ -44,6 +55,10 @@ class NxTest extends NxTestCase {
 	$this->assertTrue(empty($this->unlockObj['session']));
 	$this->assertTrue(empty($this->unlockObj['token']));
 
+
+	$nx->container['request_login'] = function ($c) {
+	  return $this->response_login;
+	};
 	$nx->bootstrap();
 
 	$this->unlockObj = $nx;

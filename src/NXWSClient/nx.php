@@ -15,10 +15,10 @@ use NXWSClient\tools,
 
 class nx {
   public $root_folder,
-		 $container,
-		 $internet_connection;
+		 $container;
 
-  private $config = array(),
+  private $internet_connection,
+		  $config = array(),
 		  // List of subfolders in dados folder. Each subfolder alone
 		  // represents a single service at the webservices.
 		  // These subfolders will contain file data for synchronization.
@@ -50,8 +50,8 @@ class nx {
   const SYNC_TAG_ACTION_FAIL = 2;
   const SYNC_TAG_ACTION_ITEM_DATA_EMPTY = 3;
 
-  const MOVE_ITEM_DATA_ACTION_FAIL = 'falhas';
-  const MOVE_ITEM_DATA_ACTION_SUCCESS = 'sucessos';
+  const MOVE_FILE_DATA_ACTION_FAIL = 'falhas';
+  const MOVE_FILE_DATA_ACTION_SUCCESS = 'sucessos';
 
   /**
    * Initial Constructor.
@@ -90,13 +90,49 @@ class nx {
 	// Http requests.
 	$container['request_method'] = '';
 	$container['request_uri'] = '';
+	$container['request_body'] = '';
 	$container['request'] = $container->factory(function ($c) {
 	  // GET, POST or PUT.
 	  $method = $c['request_method'];
 	  // The service full URI.
 	  $uri = $c['request_uri'];
+	  $body = $c['request_body'];
 
-	  return Request::$method($uri);
+	  $request = Request::$method($uri)
+		->sendsJson()
+		->expectsJson()
+		->addHeader('Cookie', $this->merchant_login['session'])
+		->addHeader('X-CSRF-Token', $this->merchant_login['token'])
+		->body($body)
+		->send();
+
+	  return $request;
+	});
+
+	$container['request_login_username'] = '';
+	$container['request_login_password'] = '';
+	$container['request_login'] = $container->factory(function ($c) {
+	  // GET, POST or PUT.
+	  $method = $c['request_method'];
+	  // The service full URI.
+	  $uri = $c['request_uri'];
+	  $username = $c['request_login_username'];
+	  $password = $c['request_login_password'];
+	  $request = Request::$method($uri)
+		->body("username=$username&password=$password")
+		->expectsJson()
+		->send();
+
+	  return $request;
+	});
+
+	$container['request_check'] = $container->factory(function ($c) {
+	  // The service full URI.
+	  $uri = $c['request_uri'];
+	  $request = Request::get($uri)
+		->send();
+
+	  return $request;
 	});
 
 	// Ini file writer.
@@ -227,9 +263,9 @@ class nx {
 	  $config['pastas']['tmp'] = $config_file['pastas']['tmp'];
 	}
 
-	if (!isset($config_file['servidor_smtp']) ||
-		!isset($config_file['notificar']) ||
-		!isset($config_file['credenciais'])) {
+	if (empty($config_file['servidor_smtp']) ||
+		empty($config_file['notificar']) ||
+		empty($config_file['credenciais'])) {
 	  throw new Exception(tools::print_red("Tem algo errado no arquivo de configuracao $config_file."));
 	}
 	$config['servidor_smtp'] = $config_file['servidor_smtp'];
@@ -256,7 +292,7 @@ class nx {
 	$env = $config['ambiente'];
 
 	if (!in_array($env, $valid_envs)) {
-	  $print = "O valor '$env' para ambiente eh invalido.";
+	  $print = "O valor '$env' para o parametro ambiente eh invalido.";
 	  $this->log($print);
 	  throw new Exception(tools::print_red($print));
 	}
@@ -330,11 +366,9 @@ class nx {
 	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
 	  $this->bootstrap_config();
 	  $uri = $this->endpoint;
-  
-	  $this->container['request_method'] = 'get';
+
 	  $this->container['request_uri'] = $uri;
-	  $request = $this->container['request']
-		->send();
+	  $request = $this->container['request_check'];
   
 	  $endpoint_ok = $this->response_code($request, $uri);
   
@@ -471,10 +505,10 @@ class nx {
 		try{
 		  $this->container['request_method'] = 'post';
 		  $this->container['request_uri'] = $uri;
-		  $request = $this->container['request']
-			->body("username=$username&password=$password")
-			->expectsJson()
-			->send();
+		  $this->container['request_login_username'] = $username;
+		  $this->container['request_login_password'] = $password;
+		  $request = $this->container['request_login'];
+
 		  $response_ok = $this->response_code($request, $uri);
 		}
 		catch(Exception $e) {
@@ -538,13 +572,8 @@ class nx {
 	  try {
 		$this->container['request_method'] = $http_method;
 		$this->container['request_uri'] = $uri;
-		$request = $this->container['request']
-		  ->sendsJson()
-		  ->expectsJson()
-		  ->addHeader('Cookie', $this->merchant_login['session'])
-		  ->addHeader('X-CSRF-Token', $this->merchant_login['token'])
-		  ->body($item_data)
-		  ->send();
+		$this->container['request_body'] = $item_data;
+		$request = $this->container['request'];
   
 		$response_ok = $this->response_code($request, $uri);
 	  }
@@ -574,7 +603,7 @@ class nx {
    * @return Bool
    *   Whether or not  the request was successful ( code 200 ).
    */
-  private function response_code(\Httpful\Response $response, $uri) {
+  private function response_code($response, $uri) {
 	$this->response_code = $code = $response->code;
 	$body = $response->raw_body;
 
@@ -603,23 +632,6 @@ class nx {
 	  break;
 	}
   }
-
-  /*private function update($service = 'produto', $service_method = 'atualizar') {
-	$item_data = array(
-	  //'nome' => 'update test 55',
-	  //'product_id' => 64,
-	  'sku' => '87-35-55',
-	  //'preco' => 1583,
-	  //'preco_velho' => 7068,
-	  //'qtde_em_estoque' => 4255,
-	  //'cod_cidade' => 35,
-	  // Opcional.
-	  //'localizacao_fisica' => 'prateleira',
-	  // Opcional.
-	  //'cod_produto_erp' => '1111',
-	  'status' => 0,
-	);
-  }*/
 
   /**
    * Deletes a file. Logs message if it fails.
@@ -670,7 +682,7 @@ class nx {
 				  // File is empty. So, it goes straight into the fail's bin.
 				  $item_data = array();
 				  $this->set_sync_attempt_tag($item_data, nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY);
-				  $this->move_item_data($item_data, $service, $file_name, nx::MOVE_ITEM_DATA_ACTION_FAIL);
+				  $this->move_file_data($item_data, $service, $file_name, nx::MOVE_FILE_DATA_ACTION_FAIL);
 				  $this->delete_file($file_full_path);
 				  // Move on to next file.
 				  break;
@@ -716,8 +728,8 @@ class nx {
 
 	  if (!empty($result['success'])) {
 		foreach ($result['success'] as $service => $file_names) {
-		  foreach ($file_names as $file_name => $item_data) {
-			$this->move_item_data($item_data, $service, $file_name, nx::MOVE_ITEM_DATA_ACTION_SUCCESS);
+		  foreach ($file_names as $file_name => $file_data) {
+			$this->move_file_data($file_data, $service, $file_name, nx::MOVE_FILE_DATA_ACTION_SUCCESS);
 		  }
 		}
 	  }
@@ -733,8 +745,8 @@ class nx {
 		$this->log($msg);
 
 		foreach ($result['fail'] as $service => $file_names) {
-		  foreach ($file_names as $file_name => $item_data) {
-			$this->move_item_data($item_data, $service, $file_name, nx::MOVE_ITEM_DATA_ACTION_FAIL);
+		  foreach ($file_names as $file_name => $file_data) {
+			$this->move_file_data($file_data, $service, $file_name, nx::MOVE_FILE_DATA_ACTION_FAIL);
 		  }
 		}
 	  }
@@ -779,9 +791,10 @@ class nx {
 			$item_exists = $this->{$method_name}($item_id, FALSE);
 
 			if ($item_exists) {
-			  // We found a secundary id value in the item data.
+			  // There is an item at the webservice identified by this
+			  // secundary id value.
 			  $create = FALSE;
-			  // Stop looping and we go on.
+			  // Stop looping and go on.
 			  break;
 			}
 		  }
@@ -799,13 +812,13 @@ class nx {
 	  $tag_action = nx::SYNC_TAG_ACTION_UPDATE;
 	}
 
-	$sync_tag = array();
-	if (!empty($item_data['-sincronizacao-'])) {
-	  $sync_tag = $item_data['-sincronizacao-'];
-	}
-
 	if ($sync_ok) {
-	  $item_data = (array) json_decode($this->response_body_json, true);
+	  $sync_tag = array();
+	  if (!empty($item_data['-sincronizacao-'])) {
+		$sync_tag = $item_data['-sincronizacao-'];
+	  }
+
+	  $item_data = (array) json_decode($this->response_body_json, TRUE);
 	  $item_data['-sincronizacao-'] = $sync_tag;
 	  $this->set_sync_attempt_tag($item_data, $tag_action);
 
@@ -873,11 +886,11 @@ class nx {
   }
 
   /**
-   * Moves the item data collected from dados folder to either
-   * tmp/falhas or tmp/sucessos folder.
+   * Moves a file data loaded from dados folder to a file located either
+   * at tmp/falhas or tmp/sucessos folder.
    *
-   * @param Array $item_data
-   *   The data array.
+   * @param Array $file_data
+   *   An array of item data.
    *
    * @param String $service
    *   The service name.
@@ -888,15 +901,23 @@ class nx {
    * @param String $action
    *   Expects either "falhas" or "sucessos"
    */
-  private function move_item_data($item_data, $service, $file_name, $action) {
-	$main_folder = $this->folders['tmp'];
-	$destination_folder = "$main_folder/$action/$service";
+  private function move_file_data($file_data, $service, $file_name, $action) {
+	$destinations = array(
+	  'go' => $this->folders['tmp'] . "/$action/$service/$file_name",
+	  'stay' => $this->folders['dados'] . "/$service/$file_name",
+	);
+
+	// Initially assume that all goes to either tmp/falhas or
+	// tmp/sucessos folders.
+	$file_data = array(
+	  'go' => $file_data,
+	);
 
 	switch($action) {
-	  case nx::MOVE_ITEM_DATA_ACTION_FAIL:
+	  case nx::MOVE_FILE_DATA_ACTION_FAIL:
 		$stay = array();
 		$go = array();
-		foreach ($item_data as $item) {
+		foreach ($file_data['go'] as $item) {
 		  // Send to fail bin only if it had failed over 3 times.
 		  if (empty($item['-sincronizacao-']) || $item['-sincronizacao-']['tentativas'] <= 3) {
 			$stay[] = $item;
@@ -905,41 +926,26 @@ class nx {
 			$go[] = $item;
 		  }
 		}
-
-		if (!empty($stay)) {
-		  if (count($stay) === 1) {
-			$stay = $stay[0];
-		  }
-
-		  $file_full_path = $this->folders['dados'] . "/$service/$file_name";
-		  try {
-			$writer = $this->container['ini_writer'];
-			$writer->toFile($file_full_path, (array) $stay, $this->container['ini_writer_lock']);
-		  }
-		  catch(Exception $e) {
-			$msg = $e->getMessage();
-			$this->log("Nao foi possivel salvar o arquivo $file_full_path. Detalhamento do erro:" . PHP_EOL . $msg, 'red');
-		  }
-		}
-
-		$item_data = $go;
+		$file_data['go'] = $go;
+		$file_data['stay'] = $stay;
 	  break;
 	}
 
-	if (!empty($item_data)) {
-	  $file_full_path = "$destination_folder/$file_name";
-  
-	  if (count($item_data) === 1) {
-		$item_data = $item_data[0];
+	// $state is either stay or go.
+	foreach($file_data as $state => $data) {
+	  $file_dest_full_path = $destinations[$state];
+
+	  if (count($data) === 1) {
+		$data = $data[0];
 	  }
-  
+
 	  try {
 		$writer = $this->container['ini_writer'];
-		$writer->toFile($file_full_path, (array) $item_data, $this->container['ini_writer_lock']);
+		$writer->toFile($file_dest_full_path, (array) $data, $this->container['ini_writer_lock']);
 	  }
 	  catch(Exception $e) {
 		$msg = $e->getMessage();
-		$this->log("Nao foi possivel salvar o arquivo $file_full_path. Detalhamento do erro:" . PHP_EOL . $msg, 'red');
+		$this->log("Nao foi possivel salvar o arquivo $file_dest_full_path. Detalhamento do erro:" . PHP_EOL . $msg, 'red');
 	  }
 	}
   }
