@@ -159,4 +159,22 @@ class NxTestCase extends PHPUnit_Framework_TestCase {
 	  return $response;
 	});
   }
+
+  public function nx_product_update_success_response($nx) {
+	$nx->container['request'] = $nx->container->factory(function ($c) {
+	  $response = new stdclass();
+	  switch($c['request_method']) {
+		case 'get':
+		  $response->code = 200;
+		  $response->raw_body = '{"sku":"87-35-73","nome":"product test new product 1","status":"1","product_id":"73","created":"1421736406","changed":"1421848787","preco":"10760","preco_velho":"11000","qtde_em_estoque":"9999999.99","cod_cidade":"35","cod_produto_erp":"520","localizacao_fisica":"prateleira","preco_formatado":"R$107,60","preco_velho_formatado":"R$110,00"}';
+		break;
+		case 'put':
+		  $response->code = 200;
+		  $response->raw_body = '{"sku":"87-35-73","nome":"product test new product 1","status":"1","product_id":"73","created":"1421736406","changed":"1421848787","preco":"10760","preco_velho":"11000","qtde_em_estoque":"9999999.99","cod_cidade":"35","cod_produto_erp":"520","localizacao_fisica":"prateleira","preco_formatado":"R$107,60","preco_velho_formatado":"R$110,00"}';
+		break;
+	  }
+
+	  return $response;
+	});
+  }
 }

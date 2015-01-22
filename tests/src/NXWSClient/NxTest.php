@@ -4,6 +4,7 @@ namespace NXWSClient\Test;
 use NXWSClient\tools,
 	NXWSClient\nx,
 	NXWSClient\NxTestCase,
+	NXWSClient\Smtp as SmtpTransport,
 	Httpful\Request,
 	org\bovigo\vfs\vfsStream,
 	Pimple\Container,
@@ -129,10 +130,24 @@ class NxTest extends NxTestCase {
 	$this->assertFalse(isset($sucessos_file_content[1]));
 	$this->assertTrue(isset($sucessos_file_content['-sincronizacao-']));
 	$this->assertTrue($sucessos_file_content['sku'] == '87-35-73');
+	$this->assertTrue($sucessos_file_content['-sincronizacao-']['ultima_msg'] == 'Item product_id=73 foi CRIADO com sucesso no servico produto.');
   }
 
   function testScanDadosFolderCreateNewProductFromDataFileWithSingleItemAndFail() {
+	$transport = $this->getMockBuilder('SmtpTransport')
+	  ->setMethods(array('send'))
+	  ->getMock();
+
+	$transport->expects($this->exactly(4))
+	  ->method('send')
+	  ->willReturn('foo');
+
 	$nx = $this->nx;
+	$nx->container['email_transport_stub'] = $transport;
+	$nx->container['email_transport'] = function($c) {
+	  return $c['email_transport_stub'];
+	};
+
 	$nx->bootstrap();
 	$file_name = 'test_product_create_1_item.txt';
 
@@ -148,17 +163,62 @@ class NxTest extends NxTestCase {
 
 	$this->nx_product_create_fail_response($nx);
 
+	// Attempt 1.
 	$nx->scan_dados_folder();
 
-	//$this->assertFalse(file_exists($dados_file));
+	$this->assertTrue(file_exists($dados_file));
+	$reader = new IniReader();
+	$file_content = $reader->fromFile($dados_file);
+
+	$attempts = $file_content['-sincronizacao-']['tentativas'];
+	$this->assertTrue($attempts === "1");
+
 	$this->assertFalse(file_exists($sucessos_file));
+	$this->assertFalse(file_exists($falhas_file));
+	$this->assertFalse(isset($file_content['sku']));
+
+	// Attempt 2.
+	$nx->scan_dados_folder();
+
+	$this->assertTrue(file_exists($dados_file));
+	$reader = new IniReader();
+	$file_content = $reader->fromFile($dados_file);
+
+	$attempts = $file_content['-sincronizacao-']['tentativas'];
+	$this->assertTrue($attempts === "2");
+
+	$this->assertFalse(file_exists($sucessos_file));
+	$this->assertFalse(file_exists($falhas_file));
+	$this->assertFalse(isset($file_content['sku']));
+
+	// Attempt 3.
+	$nx->scan_dados_folder();
+
+	$this->assertTrue(file_exists($dados_file));
+	$reader = new IniReader();
+	$file_content = $reader->fromFile($dados_file);
+
+	$attempts = $file_content['-sincronizacao-']['tentativas'];
+	$this->assertTrue($attempts === "3");
+
+	$this->assertFalse(file_exists($sucessos_file));
+	$this->assertFalse(file_exists($falhas_file));
+	$this->assertFalse(isset($file_content['sku']));
+
+	// Attempt 4.
+	$nx->scan_dados_folder();
+
+	$this->assertFalse(file_exists($dados_file));
 	$this->assertTrue(file_exists($falhas_file));
 
 	$reader = new IniReader();
-	$falhas_file_content = $reader->fromFile($falhas_file);
+	$file_content = $reader->fromFile($falhas_file);
 
-	//$this->assertTrue(isset($falhas_file_content['-sincronizacao-']));
-	$this->assertFalse(isset($falhas_file_content['sku']));
+	$attempts = $file_content['-sincronizacao-']['tentativas'];
+	$this->assertTrue($attempts === "4");
+
+	$this->assertFalse(file_exists($sucessos_file));
+	$this->assertFalse(isset($file_content['sku']));
   }
 
   function testScanDadosFolderCreateNewProductFromDataFileWithMultipleItems() {
@@ -174,11 +234,65 @@ class NxTest extends NxTestCase {
   }
 
   function testScanDadosFolderUpdateProductFromDataFileWithSingleItem() {
-	
+	$nx = $this->nx;
+	$nx->bootstrap();
+	$file_name = 'test_product_create_1_item.txt';
+
+	$dados_file = $nx->root_folder . "/dados/produto/$file_name";
+	$sucessos_file = $nx->root_folder . "/tmp/sucessos/produto/$file_name";
+	$falhas_file = $nx->root_folder . "/tmp/falhas/produto/$file_name";
+
+	copy($this->root_folder . "/tests/$file_name", $dados_file);
+
+	$this->assertTrue(file_exists($dados_file));
+	$this->assertFalse(file_exists($sucessos_file));
+	$this->assertFalse(file_exists($falhas_file));
+
+	$this->nx_product_update_success_response($nx);
+
+	$nx->scan_dados_folder();
+
+	$this->assertFalse(file_exists($dados_file));
+	$this->assertTrue(file_exists($sucessos_file));
+	$this->assertFalse(file_exists($falhas_file));
+
+	$reader = new IniReader();
+	$sucessos_file_content = $reader->fromFile($sucessos_file);
+	$this->assertFalse(isset($sucessos_file_content[0]));
+	$this->assertFalse(isset($sucessos_file_content[1]));
+	$this->assertTrue(isset($sucessos_file_content['-sincronizacao-']));
+	$this->assertTrue($sucessos_file_content['sku'] == '87-35-73');
+	$this->assertTrue($sucessos_file_content['-sincronizacao-']['ultima_msg'] == 'Item product_id=73 foi ATUALIZADO com sucesso no servico produto.');
   }
 
   function testScanDadosFolderUpdateProductFromDataFileWithMultipleItems() {
 	
+  }
+
+  function testScanDadosFolderSubfolderProductContainingEmptyFile() {
+	$nx = $this->nx;
+	$nx->bootstrap();
+	$file_name = 'test_product_empty_file.txt';
+
+	$dados_file = $nx->root_folder . "/dados/produto/$file_name";
+	$sucessos_file = $nx->root_folder . "/tmp/sucessos/produto/$file_name";
+	$falhas_file = $nx->root_folder . "/tmp/falhas/produto/$file_name";
+
+	copy($this->root_folder . "/tests/$file_name", $dados_file);
+
+	$this->assertTrue(file_exists($dados_file));
+	$this->assertFalse(file_exists($sucessos_file));
+	$this->assertFalse(file_exists($falhas_file));
+
+	$nx->scan_dados_folder();
+
+	$this->assertFalse(file_exists($dados_file));
+	$this->assertFalse(file_exists($sucessos_file));
+	$this->assertTrue(file_exists($falhas_file));
+
+	$reader = new IniReader();
+	$file_content = $reader->fromFile($falhas_file);
+	$this->assertTrue($file_content['-sincronizacao-']['ultima_msg'] == 'O arquivo dados estava vazio.');
   }
 
   /*function testLogMethod() {

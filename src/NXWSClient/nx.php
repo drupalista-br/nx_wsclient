@@ -682,12 +682,12 @@ class nx {
 				  // File is empty. So, it goes straight into the fail's bin.
 				  $item_data = array();
 				  $this->set_sync_attempt_tag($item_data, nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY);
-				  $this->move_file_data($item_data, $service, $file_name, nx::MOVE_FILE_DATA_ACTION_FAIL);
+				  $this->move_file_data($item_data, $service, $file_name, nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY);
 				  $this->delete_file($file_full_path);
 				  // Move on to next file.
 				  break;
 				}
-		
+
 				$item_file_data = $this->container['ini_reader']
 				  ->fromFile($file_full_path);
 				if ($item_file_data) {
@@ -735,20 +735,18 @@ class nx {
 	  }
 
 	  if (!empty($result['fail'])) {
-		// Send an email notification to the system admin.
-		$tmp_falhas = $this->folders['tmp'] . "/falhas/$service";
-		$tmp_logs = $this->folders['tmp'] . "/logs";
-		$msg = "A sincronização falhou. Verifique as pastas:" . PHP_EOL;
-		$msg .= "a) $tmp_falhas" . PHP_EOL;
-		$msg .= "b) $tmp_logs";
-		$this->notify($msg);
-		$this->log($msg);
+		$msg = "A sincronização falhou. Verifique os seguintes arquivos e pasta:" . PHP_EOL;
+		$msg .= "* " . $this->folders['tmp'] . "/logs" . PHP_EOL;
 
 		foreach ($result['fail'] as $service => $file_names) {
 		  foreach ($file_names as $file_name => $file_data) {
+			$msg .= "* " . $this->folders['tmp'] . "/falhas/$service/$file_name" . PHP_EOL;
 			$this->move_file_data($file_data, $service, $file_name, nx::MOVE_FILE_DATA_ACTION_FAIL);
 		  }
 		}
+		// Send an email notification to the system admin.
+		$this->notify($msg);
+		$this->log($msg);
 	  }
 	}
   }
@@ -929,23 +927,28 @@ class nx {
 		$file_data['go'] = $go;
 		$file_data['stay'] = $stay;
 	  break;
+	  case nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY:
+		$destinations['go'] = $this->folders['tmp'] . "/falhas/$service/$file_name";
+	  break;
 	}
 
 	// $state is either stay or go.
 	foreach($file_data as $state => $data) {
 	  $file_dest_full_path = $destinations[$state];
 
-	  if (count($data) === 1) {
+	  if (count($data) === 1 && $action !== nx::SYNC_TAG_ACTION_ITEM_DATA_EMPTY) {
 		$data = $data[0];
 	  }
 
-	  try {
-		$writer = $this->container['ini_writer'];
-		$writer->toFile($file_dest_full_path, (array) $data, $this->container['ini_writer_lock']);
-	  }
-	  catch(Exception $e) {
-		$msg = $e->getMessage();
-		$this->log("Nao foi possivel salvar o arquivo $file_dest_full_path. Detalhamento do erro:" . PHP_EOL . $msg, 'red');
+	  if (!empty($data)) {
+		try {
+		  $writer = $this->container['ini_writer'];
+		  $writer->toFile($file_dest_full_path, (array) $data, $this->container['ini_writer_lock']);
+		}
+		catch(Exception $e) {
+		  $msg = $e->getMessage();
+		  $this->log("Nao foi possivel salvar o arquivo $file_dest_full_path. Detalhamento do erro:" . PHP_EOL . $msg, 'red');
+		}
 	  }
 	}
   }
