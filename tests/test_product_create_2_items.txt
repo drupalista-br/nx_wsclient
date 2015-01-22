@@ -8,7 +8,7 @@ cod_produto_erp = 520
 localizacao_fisica = prateleira
 
 [1]
-nome = product test new product 3
+nome = product test new product 2
 preco = 10880
 preco_velho = 11000
 qtde_em_estoque = 9999999.99
