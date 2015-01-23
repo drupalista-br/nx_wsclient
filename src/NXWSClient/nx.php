@@ -135,7 +135,7 @@ class nx {
 	  return $request;
 	});
 
-	// Ini file writer.
+	// Ini file reader.
 	$container['ini_reader'] = function($c) {
 	  return new IniReader();
 	};
@@ -154,7 +154,7 @@ class nx {
 	  $config = $c['config'];
 
 	  $message = new Message();
-	  $message->addFrom($config['servidor_smtp']['username']);
+	  $message->addFrom($config['smtp']['username']);
 
 	  foreach($config['notificar'] as $recipient) {
 		$message->addTo($recipient['email']);
@@ -171,8 +171,8 @@ class nx {
 		'port' => $c['email_port'],
 		'connection_config' => array(
 		  'ssl' => 'ssl',
-		  'username' => $config['servidor_smtp']['username'],
-		  'password' => $config['servidor_smtp']['password'],
+		  'username' => $config['smtp']['username'],
+		  'password' => $config['smtp']['password'],
 		),
 	  ));
 	  return $options;
@@ -244,14 +244,14 @@ class nx {
 	  ),
 	);
 
-	$config_file = $c['config_file_location'];
+	$config_file_path = $c['config_file_location'];
 
-	if (!file_exists($config_file)) {
-	  throw new Exception(tools::print_red("O arquivo $config_file nao existe."));
+	if (!file_exists($config_file_path)) {
+	  throw new Exception(tools::print_red("O arquivo $config_file_path nao existe."));
 	}
 
 	$config_file = $c['ini_reader']
-	  ->fromFile($config_file);
+	  ->fromFile($config_file_path);
 
 	$config['ambiente'] = (isset($config_file['ambiente'])) ? $config_file['ambiente'] : $config['ambiente'];
 
@@ -263,12 +263,17 @@ class nx {
 	  $config['pastas']['tmp'] = $config_file['pastas']['tmp'];
 	}
 
-	if (empty($config_file['servidor_smtp']) ||
-		empty($config_file['notificar']) ||
-		empty($config_file['credenciais'])) {
-	  throw new Exception(tools::print_red("Tem algo errado no arquivo de configuracao $config_file."));
+	if (empty($config_file['notificar'])) {
+	  tools::print_red("Informe pelo menos um email para ser notificado quando algo der errado. Execute o seguinte comando:");
+	  tools::print_blue("php cli.php config notificar admin EMAIL-DO-ADMIN@PROVEDOR.COM");
+	  throw new Exception();
 	}
-	$config['servidor_smtp'] = $config_file['servidor_smtp'];
+
+	if (empty($config_file['smtp']) ||
+		empty($config_file['credenciais'])) {
+	  throw new Exception(tools::print_red("Tem algo errado no arquivo de configuracao $config_file_path."));
+	}
+	$config['smtp'] = $config_file['smtp'];
 	$config['notificar'] = $config_file['notificar'];
 	$config['credenciais'] = $config_file['credenciais'];
 
@@ -286,7 +291,6 @@ class nx {
 	$this->folders = $config['pastas'];
 	$this->set_folders();
 	$this->log_file = $this->folders['tmp'] . "/logs/$current_date.log";
-
 
 	$valid_envs = array('producao', 'sandbox');
 	$env = $config['ambiente'];
@@ -377,8 +381,14 @@ class nx {
 	  }
   
 	  $this->set_folders(TRUE);
+
+	  $first_receivers_name = current(array_keys($this->container['config']['notificar']));
+	  if (empty($this->container['config']['notificar'][$first_receivers_name]['email'])) {
+		tools::print_red("Informe pelo menos um email para ser notificado quando algo der errado. Execute o seguinte comando:");
+		tools::print_blue("php cli.php config notificar admin EMAIL-DO-ADMIN@PROVEDOR.COM");
+	  }
   
-	  $email = $this->container['config']['servidor_smtp']['username'];
+	  $email = $this->container['config']['smtp']['username'];
 	  try {
 		$transport = $this->container['email_transport'];
 		$transport->handshake();
@@ -480,7 +490,7 @@ class nx {
    * @return Bool
    *   Whether or not the login was successful.
    */
-  private function bootstrap_merchant_login($reset = FALSE) {
+  public function bootstrap_merchant_login($reset = FALSE) {
 	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
 	  $username = $this->config['credenciais']['username'];
 	  $session_file = $this->folders['tmp'] . "/.session";
@@ -660,6 +670,8 @@ class nx {
 	  $this->container['scan_folder_path'] = $this->folders['dados'];
 	  $subfolders = $this->container['scan_folder'];
 
+	  $nothing_to_sync = TRUE;
+
 	  foreach ($subfolders as $subfolder_object) {
 		if ($subfolder_object->isDir()) {
 		  $item_data_folder = $subfolder_object->getPath();
@@ -675,6 +687,8 @@ class nx {
 
 			foreach ($files as $file_object) {
 			  if ($file_object->isFile()) {
+				$nothing_to_sync = FALSE;
+
 				$file_name = $file_object->getFilename();
 				$file_full_path = "$item_data_folder/$service/$file_name";
 
@@ -724,6 +738,10 @@ class nx {
 			}
 		  }
 		}
+	  }
+
+	  if ($nothing_to_sync) {
+		tools::print_yellow("Nao ha nada a ser sincronizado.");
 	  }
 
 	  if (!empty($result['success'])) {

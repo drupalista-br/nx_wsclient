@@ -1,273 +1,340 @@
 <?php
 namespace NXWSClient;
 
-use Zend\Config\Writer\Ini;
-use NXWSClient\nx;
+use NXWSClient\nx,
+	NXWSClient\tools,
+	Pimple\Container,
+	Zend\Config\Writer\Ini as IniWriter,
+	Zend\Config\Reader\Ini as IniReader,
+	Exception;
 
 class argv {
-  private $expected_arguments = array(
-	'help' => 'Exemplo: php run.php help config',
+  public $container;
+
+  private $expected_parameters = array(
 	'config' => array(
-	  'ambiente' => 'Padrão producao | Exemplo: php run.php config ambiente sandbox',
+	  'ambiente' => 'Padrão producao | Exemplo: php cli.php config ambiente sandbox',
 	  'pastas' => array(
-		'dados' => 'Padrão %app%/dados | Exemplo: php run.php config pastas dados "c:\minha pasta\dados"',
-		'tmp' => 'Padrão %app%/tmp | Exemplo: php run.php config pastas tmp "c:\minha pasta\tmp"',
+		'dados' => 'Padrão %app%/dados | Exemplo: php cli.php config pastas dados "c:\minha pasta\dados"',
+		'tmp' => 'Padrão %app%/tmp | Exemplo: php cli.php config pastas tmp "c:\minha pasta\tmp"',
 	  ),
 	  'credenciais' => array(
-		'username' => 'Exemplo: php run.php config credenciais username "Francisco Luz"',
-		'password' => 'Exemplo: php run.php config credenciais password minhasenha',
+		'username' => 'Exemplo: php cli.php config credenciais username "Francisco Luz"',
+		'password' => 'Exemplo: php cli.php config credenciais password minhasenha',
 	  ),
-	  'mostrar' => 'Exemplo: php run.php config mostrar credenciais | Para ver as credenciais atuais.',
+	  'smtp' => array(
+		'username' => 'Exemplo: php cli.php config smtp username meuenderecodeemail@gmail.com',
+		'password' => 'Exemplo: php cli.php config smtp password minhasenha',
+	  ),
+	  'notificar' => 'Exemplo: php cli.php config notificar NOME destinario@provedor.com',
+	  'mostrar' => 'Exemplo: php cli.php config mostrar credenciais | Para ver as credenciais atuais.',
 	),
-	'scaniar' => array(
-	  'produto' => 'Exemplo: php run.php scaniar produto',
-	),
+	'sincronizar' => 'Exemplo: php cli.php sincronizar',
 	'consultar' => array(
 	  'produto' => array(
-		'product_id' => 'Exemplo: php run.php consultar produto product_id VALOR_DO_PRODUCT_ID',
-		'sku' => 'Exemplo: php run.php consultar produto sku VALOR_DO_SKU',
-		'cod_produto_erp' => 'Exemplo: php run.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP',
+		'product_id' => 'Exemplo: php cli.php consultar produto product_id VALOR_DO_PRODUCT_ID',
+		'sku' => 'Exemplo: php cli.php consultar produto sku VALOR_DO_SKU',
+		'cod_produto_erp' => 'Exemplo: php cli.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP',
 	  ),
 	  'pedido' => array(
-		'no' => 'Exemplo: php run.php consultar pedido no NUMERO_DO_PEDIDO',
+		'no' => 'Exemplo: php cli.php consultar pedido no NUMERO_DO_PEDIDO',
 	  ),
-	  'cidades' => 'Exemplo: php run.php consultar cidades',
+	  'cidades' => 'Exemplo: php cli.php consultar cidades',
 	),
 	'resetar' => array(
-	  'login' => 'Exemplo: php run.php resetar login | Gera novo token para authenticação do usuário lojista junto a NortaoX.com',
+	  'login' => 'Exemplo: php cli.php resetar login | Gera novo token para authenticação do usuário lojista junto a NortaoX.com',
 	),
-	'testar' => 'Exemplo: php run.php testar | Verifica se o Webservice está responsivo e se as pastas dados e tmp são acessíveis.',
+	'testar' => 'Exemplo: php cli.php testar | Verifica se o Webservice está responsivo e se as pastas dados e tmp são acessíveis.',
   ),
-  $is_dev,
-  // nx object.
-  $nx,
+
   /**
-   * Command Instruction.
+   * @property String
+   *   It's the first level key from $expected_parameters.
    */
   $command_type,
-  $command_string,
-  $command_array,
+
   /**
-   * Command Parameters.
+   * @property String
+   *   A sequence of parameters on a single string.
    */
-  $command_params,
-  // Number of parameters sent after the command instructions.
-  $command_params_qty_sent;
+  $command_parameters,
+
+  /**
+   * @property Array
+   * 	A sequence of arguments sent after the parameters.
+   */
+  $command_arguments,
+
+  /**
+   * @property Integer
+   *   The number of arguments sent after the parameters.
+   */
+  $command_arguments_qty_sent;
   
-  public function __construct($is_dev = FALSE) {
-	$command_type = 'nx';
-	$command_string = '';
-	$command_array = array();
-	$command_params = array();
-	$command_last = FALSE;
+  public function __construct($argv) {
+	$this->bootstrap_container();
+	$this->bootstrap($argv);
+  }
 
-	$validation = $this->expected_arguments;
-	
-	foreach ($argv as $delta => $argument_value) {
-	  if ($delta !== 0) {
-		$argument_value = strtolower(trim($argument_value));
+  /**
+   * Defines external dependencies making it easier for mocking those
+   * dependencies at unit testing.
+   */
+  private function bootstrap_container() {
+	$container = new Container();
+	$container['nx'] = $container->factory(function($c) {
+	  $nx =  new nx();
+	  //$nx->container['config_producao_uri'] = 'loja.nortaox.local/api';
+	  $nx->bootstrap();
+	  return $nx;
+	});
 
-		if (isset($validation[$argument_value])) {
-		  if ($delta === 1) {
-			switch($argument_value) {
-			  case 'help':
-			  case 'config':
-			  case 'consultar':
-				$command_type = $argument_value;
-			  break;
-			}
-		  }
-		  
-		  if (is_array($validation[$argument_value])) {
-			if ($delta !== 1) {
-			  $command_array[] = $argument_value;
-			}
-			$command_string .= (empty($command_string)) ? $argument_value : ' ' . $argument_value;
-	
-			// Jump one level down.
-			$validation = $validation[$argument_value];
-		  }
-		  else {
-			// This is the last element on the validation array.
-			$command_string .= (empty($command_string)) ? $argument_value : ' ' . $argument_value;
-			$command_last = $argument_value;
-		  }
-		}
-		else {
-		  // This value is not a command instruction but a parameter value.
-		  $command_params[] = $argument_value;
-		}
+	// Ini file reader.
+	$container['ini_reader'] = function($c) {
+	  return new IniReader();
+	};
+
+	// Ini file writer.
+	$container['ini_writer_lock'] = TRUE;
+	$container['ini_writer'] = function($c) {
+	  return new IniWriter();
+	};
+
+	$this->container = $container;
+  }
+
+  /**
+   * Initial Validation and Loading.
+   */
+  private function bootstrap($argv) {
+	$command_type = '';
+	$command_parameters = '';
+	$command_arguments = array();
+
+	$expected_parameters = $this->expected_parameters;
+
+	if (!isset($argv[1]) || !isset($expected_parameters[$argv[1]])) {
+	  $msg = "Comando ausente. Veja instruções acima.";
+	  if (isset($argv[1])) {
+		$command_type = $argv[1];
+		$msg = "O comando '$command_type' não foi reconhecido. Veja instruções acima.";
+	  }
+	  print_r($expected_parameters);
+	  throw new Exception(tools::print_red($msg));
+	}
+	$command_type = $argv[1];
+	$expected_parameters = $expected_parameters[$command_type];
+
+	unset($argv[0]);
+	unset($argv[1]);
+	foreach ($argv as $argv_value) {
+	  $argv_value = strtolower(trim($argv_value));
+
+	  if (isset($expected_parameters[$argv_value])) {
+		// $argv_value is a parameter.
+		$command_parameters .= empty($command_parameters) ? $argv_value : ' ' . $argv_value;
+
+		// Jump one level down.
+		$expected_parameters = $expected_parameters[$argv_value];
+	  }
+	  else {
+		// $argv_value is an argument.
+		$command_arguments[] = $argv_value;
 	  }
 	}
 
-	if (!$command_last) {
-	  print "INSTRUCAO IMCOMPLETA. INSTRUCOES ESPERADAS SAO:" . PHP_EOL;
-	  print_r($validation);
-	  exit();
-	}
-	$this->is_dev = $is_dev;
-
 	$this->command_type = $command_type;
-	$this->command_array = $command_array;
-	$this->command_string = $command_string;
-
-	$this->command_params = $command_params;
-	$this->command_params_qty_sent = count($command_params);
+	$this->command_parameters = $command_parameters;
+	$this->command_arguments = $command_arguments;
+	$this->command_arguments_qty_sent = count($command_arguments);
   }
 
   public function run() {
 	$command_type = $this->command_type;
-	$command_array = $this->command_array;
+	$paramenters = $this->command_parameters;
+	$arguments = $this->command_arguments;
+	$throw_exception = FALSE;
 
 	switch($command_type) {
-	  case 'help':
-		$this->run_help();
-	  break;
 	  case 'config':
-		$this->run_config();
-	  break;
-	  case 'nx':
-	  case 'consultar':
-		try{
-		  $this->nx = new nx($this->is_dev);
-		  $this->run_nx();
+		// Load config.ini.
+		$root_folder = pathinfo(__DIR__);
+		$root_folder = $this->root_folder = dirname($root_folder['dirname']);
+		$config_file = "$root_folder/config.ini";
+		$config = $this->container['ini_reader']
+		  ->fromFile($config_file);
+
+		switch($paramenters) {
+		  case 'ambiente':
+			$this->check_command_arguments();
+			$valid_values = array('sandbox', 'producao');
+
+			$argument = $arguments[0];
+			if (!in_array($argument, $valid_values)) {
+			  throw new Exception(tools::print_yellow("$argument é inválido. Os valores esperados são producao ou sandbox."));
+			}
+			$config['ambiente'] = $argument;
+		  break;
+		  case 'pastas dados':
+		  case 'pastas tmp':
+			$this->check_command_arguments();
+			$argument = $arguments[0];
+			if (!is_dir($argument)) {
+			  throw new Exception(tools::print_yellow("A pasta $argument não existe."));
+			}
+			$field_name = explode('pastas ', $paramenters);
+			$field_name = $field_name[1];
+			$config['pastas'][$field_name] = $argument;
+		  break;
+		  case 'credenciais username':
+		  case 'credenciais password':
+			$this->check_command_arguments();
+			$argument = $arguments[0];
+			$field_name = explode('credenciais ', $paramenters);
+			$field_name = $field_name[1];
+			$config['credenciais'][$field_name] = $argument;
+		  break;
+		  case 'smtp username':
+		  case 'smtp password':
+			$this->check_command_arguments();
+			$argument = $arguments[0];
+			$field_name = explode('smtp ', $paramenters);
+			$field_name = $field_name[1];
+
+			if ($field_name == 'username' && !filter_var($argument, FILTER_VALIDATE_EMAIL)) {
+			  throw new Exception(tools::print_red("$argument precisa ser um endereço de email válido da gmail."));
+			}
+
+			if (strpos($argument, '@gmail') === FALSE) {
+			  throw new Exception(tools::print_red("O $argument é um email válido mas NÃO é um email da gmail."));
+			}
+
+			$config['smtp'][$field_name] = $argument;
+		  break;
+		  case 'notificar':
+			$this->check_command_arguments(2);
+
+			if (!filter_var($arguments[1], FILTER_VALIDATE_EMAIL)) {
+			  $email = $arguments[1];
+			  throw new Exception(tools::print_red("$email é inválido."));
+			}
+
+			$config['notificar'][$arguments[0]]['email'] = $arguments[1];
+			// Remove receiver.
+			if (empty($arguments[1])) {
+			  unset($config['notificar'][$arguments[0]]);
+			}
+		  break;
+		  case 'mostrar':
+			$this->check_command_arguments();
+			$expected_parameters = $this->expected_parameters;
+			$argument = $arguments[0];
+			if (!isset($config[$argument])) {
+			  throw new Exception(tools::print_yellow("'$argument' não foi reconhecido."));
+			}
+			if (is_array($config[$argument])) {
+			  print_r($config[$argument]);
+			}
+			else {
+			  print $config[$argument] . PHP_EOL;
+			}
+
+			// Halt the execution.
+			throw new Exception();
+		  break;
+		  default:
+			$throw_exception = TRUE;
+		  break;
+		}
+		try {
+		  $writer = $this->container['ini_writer'];
+		  $writer->toFile($config_file, $config, $this->container['ini_writer_lock']);
+		  tools::print_green("O novo valor para %paramenters foi atualizado com sucesso.", array('%paramenters' => $paramenters));
 		}
 		catch(Exception $e) {
-		  // @TODO: Handle exceptions.
+		  tools::print_red($e->getMessage);
 		}
 	  break;
-	}
-  }
+	  case 'sincronizar':
+		$this->check_command_arguments(0);
+		$nx = $this->container['nx'];
+		$nx->scan_dados_folder();
+	  break;
+	  case 'consultar':
+		switch($paramenters) {
+		  case 'produto product_id':
+		  case 'produto sku':
+		  case 'produto cod_produto_erp':
+			$this->check_command_arguments();
+			$field_name = explode('produto ', $paramenters);
+			$field_name = $field_name[1];
+			$method_name = "get_produto_by_$field_name";
 
-  /**
-   * Shows command line help.
-   */
-  private function run_help() {
-	// Validation.
-	$this->check_command_params();
-	$param_value_sent = $this->command_params[0];
-
-	$help = $this->expected_arguments;
-
-	print "COMANDO(S) PARA $param_value_sent EH/SAO:";
-	print_r($help[$param_value_sent]);
-	exit(PHP_EOL);
-  }
-
-  /**
-   * Reads and Updates config.ini.
-   */
-  private function run_config() {
-	// Validation.
-	$this->check_command_params();
-	// Set param value.
-	$param_value_sent = $this->command_params[0];
-
-	if ($command_array[0] == 'pastas') {
-	  // Check if folder exists. If not, try to create it.
-	  if (!is_dir($param_value_sent)) {
-		$mkdir = mkdir($param_value_sent, 0777, TRUE);
-		if (!$mkdir) {
-		  exit("O caminho $param_value_sent nao existe e nao foi possivel cria-lo. Verifique se o usuario rodando esta aplicacao tem permissao para criar pastas." . PHP_EOL);
+			$nx = $this->container['nx'];
+			$nx->{$method_name}($arguments[0]);
+		  break;
+		  case 'pedido no':
+			$this->check_command_arguments();
+			$nx = $this->container['nx'];
+			$nx->get_pedido_by_number($arguments[0]);
+		  break;
+		  case 'cidades':
+			$this->check_command_arguments(0);
+			$nx = $this->container['nx'];
+			$nx->get_cities();
+		  break;
+		  default:
+			$throw_exception = TRUE;
+		  break;
 		}
-	  }
-	}
-
-	// Load config.ini.
-	$root_folder = pathinfo(__DIR__);
-	$root_folder = $this->root_folder = dirname($root_folder['dirname']);
-	$config_file = "$root_folder/config.ini";
-	$config = parse_ini_file($config_file, TRUE);
-
-	if ($param_value_sent == 'mostrar') {
-	  print "O(S) VALOR(ES) PARA $param_value_sent EH/SAO:";
-	  print_r($config[$param_value_sent]);
-	  exit(PHP_EOL);
-	}
-	else {
-	  // Modify config.
-	  // The value of $depth_pointer will end up being something
-	  // like: [credenciais][username]
-	  $depth_pointer = '';
-	  foreach ($command_array as $param) {
-		$depth_pointer .= "['$param']";
-	  }
-	  eval("\$config" . $depth_pointer . " = \$param_value_sent;");
-
-	  try {
-		// Write back into config.ini.
-		$writer = new Ini();
-		$writer->toFile($config_file, $config);
-		exit("Nova configuracao salva com sucesso." . PHP_EOL);
-	  }
-	  catch(Exception $e) {
-		// @TODO: Handle exceptions.
-	  }
-	}
-  }
-
-  /**
-   * Creates, Updates and Retrieves service's items.
-   */
-  private function run_nx() {
-	$result = FALSE;
-	switch($this->command_string) {
-	  case 'scaniar produto':
-		$this->check_command_params(0);
-		$result = $this->nx->scan_dados_folder();
 	  break;
-	  case 'consultar produto product_id':
-	  case 'consultar produto sku':
-	  case 'consultar produto cod_produto_erp':
-		$this->check_command_params();
-		$field_name = explode('consultar produto ', $this->command_string);
-		$method_name = "get_product_by_$field_name";
-
-		$result = $this->nx->{$method_name}($this->command_params[0]);
-	  break;
-	  case 'consultar pedido no':
-		$this->check_command_params();
-		$result = $this->nx->get_order_by_number($this->command_params[0]);
-	  break;
-	  case 'consultar cidades':
-		$this->check_command_params(0);
-		$result = $this->nx->get_cities();
-	  break;
-	  case 'resetar login':
-		$this->check_command_params(0);
-		$this->nx->login(TRUE);
+	  case 'resetar':
+		switch($paramenters) {
+		  case 'login':
+			$this->check_command_arguments(0);
+			$nx = $this->container['nx'];
+			$nx->bootstrap_merchant_login(TRUE);
+		  break;
+		  default:
+			$throw_exception = TRUE;
+		  break;
+		}
 	  break;
 	  case 'testar':
-		$this->check_command_params(0);
-		$this->nx->check(TRUE);
+		$this->check_command_arguments(0);
+		$nx = $this->container['nx'];
+		$nx->check();
 	  break;
 	}
-	if ($result) {
-	  $this->output($result);
+
+	if ($throw_exception) {
+	  $msg = "O comando '$command_type' é válido mas o(s) parâmetro(s) é(são) inválido(s) ou incompleto(s).";
+	  if (!empty($paramenters)) {
+		$msg = "O comando '$command_type' é válido mas o(s) parâmetro(s) '$paramenters' está(ão) incompleto(s).";
+	  }
+	  else {
+		if (isset($arguments[0])) {
+		  $paramenter = $arguments[0];
+		  $msg = "O comando '$command_type' é válido mas o parametro '$paramenter' não foi reconhecido.";
+		}
+	  }
+	  throw new Exception(tools::print_yellow($msg));
 	}
   }
 
   /**
-   * Performs validation on passed paramenters.
+   * Performs validation on passed arguments.
    *
-   * @param Integer $command_params_qty_expected
-   *   Number of parameter values the user is expected to give.
+   * @param Integer $command_arguments_qty_expected
+   *   Number of arguments expected after the expected parameters.
    */
-  private function check_command_params($command_params_qty_expected = 1) {
+  private function check_command_arguments($command_arguments_qty_expected = 1) {
 	$command_type = $this->command_type;
-	$command_params = $this->command_params;
-	$command_params_qty_sent = $this->command_params_qty_sent;
+	$command_parameters = $this->command_parameters;
+	$command_arguments_qty_sent = $this->command_arguments_qty_sent;
 
-  }
-
-  /**
-   * Outputs the content resulted from a service retrieve.
-   *
-   * @param String $result
-   *   The service's response result.
-   *
-   */
-  private function output($result) {
-
+	if ($command_arguments_qty_expected !== $command_arguments_qty_sent) {
+	  throw new Exception(tools::print_yellow("'$command_type $command_parameters' requer $command_arguments_qty_expected argumento(s). Foi(ram) enviado(s) $command_arguments_qty_sent."));
+	}
   }
 }
