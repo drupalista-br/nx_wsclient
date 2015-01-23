@@ -1103,7 +1103,7 @@ class nx {
   }
 
   /**
-   * Saves a item object into a txt file. The file content has a ini structure.
+   * Saves an item into a txt file. The file content has a ini structure.
    *
    * @param String $file_name
    *   The name of the file which the retrieved content will be saved into.
