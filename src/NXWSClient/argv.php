@@ -182,6 +182,9 @@ class argv {
 			if (!is_dir($argument)) {
 			  throw new Exception(tools::print_yellow("A pasta $argument não existe."));
 			}
+			if (!is_writable($argument)) {
+			  throw new Exception(tools::print_yellow("O usuário atual não tem permissão para gravar na pasta $argument."));
+			}
 			$field_name = explode('pastas ', $paramenters);
 			$field_name = $field_name[1];
 			$config['pastas'][$field_name] = $argument;
@@ -246,13 +249,15 @@ class argv {
 			$throw_exception = TRUE;
 		  break;
 		}
-		try {
-		  $writer = $this->container['ini_writer'];
-		  $writer->toFile($config_file, $config, $this->container['ini_writer_lock']);
-		  tools::print_green("O novo valor para %paramenters foi atualizado com sucesso.", array('%paramenters' => $paramenters));
-		}
-		catch(Exception $e) {
-		  tools::print_red($e->getMessage);
+		if (!$throw_exception) {
+		  try {
+			$writer = $this->container['ini_writer'];
+			$writer->toFile($config_file, $config, $this->container['ini_writer_lock']);
+			tools::print_green("O novo valor para %paramenters foi atualizado com sucesso.", array('%paramenters' => $paramenters));
+		  }
+		  catch(Exception $e) {
+			tools::print_red($e->getMessage);
+		  }
 		}
 	  break;
 	  case 'sincronizar':
