@@ -360,9 +360,10 @@ class nx {
   }
 
   /**
+   * Checks the internet connection status.
    * Sends a test request to the endpoint.
    * Checks if dados and tmp folders are reachable.
-   * Checks the internet connection status.
+   * Checks for at least one notification receiver in the config.ini.
    * Tries a handshake with Google's SMTP server.
    */
   public function check() {
@@ -382,8 +383,8 @@ class nx {
   
 	  $this->set_folders(TRUE);
 
-	  $first_receivers_name = current(array_keys($this->container['config']['notificar']));
-	  if (empty($this->container['config']['notificar'][$first_receivers_name]['email'])) {
+	  $first_receiver = current(array_keys($this->container['config']['notificar']));
+	  if (empty($this->container['config']['notificar'][$first_receiver]['email'])) {
 		tools::print_red("Informe pelo menos um email para ser notificado quando algo der errado. Execute o seguinte comando:");
 		tools::print_blue("php cli.php config notificar admin EMAIL-DO-ADMIN@PROVEDOR.COM");
 	  }
