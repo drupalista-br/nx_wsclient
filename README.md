@@ -101,16 +101,16 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
   <span class="ready-accordion-header"><h3><u>Cadastrar Produtos</u></h3></span>
 	<ul>
 	  <li>A sua aplicação deverá criar um arquivo texto contendo os dados do(s) produto(s) a serem
-		  cadastrados no website da NortaoX.com.
+		  cadastrados no sistema e-Commerce da NortaoX.com.
 	  </li>
 	  <li>O conteúdo do arquivo texto deverá ter estrutura de <a href="http://pt.wikipedia.org/wiki/INI_(formato_de_arquivo)">
 		arquivo INI</a>. Por exemplo:<br />
 		Nome do arquivo: <code>prod_520.txt</code><br />
 		<script src="https://gist.github.com/drupalista-br/b7ae0c12846a4b9cfc95.js"></script>
-		O exemplo acima cadastrará um único produto no website da NortaoX.com<br /><br />
+		O exemplo acima cadastrará um único produto no sistema e-Commerce da NortaoX.com<br /><br />
 		Nome do arquivo: <code>prod_520_521.txt</code><br />
 		<script src="https://gist.github.com/drupalista-br/2cb37eaf477aa0a76ee3.js"></script>
-		O exemplo acima cadastrará 2 produtos no website da NortaoX.com. <br />
+		O exemplo acima cadastrará 2 produtos no sistema e-Commerce da NortaoX.com. <br />
 		<strong>ATENÇÃO:</strong>
 		não tente cadastrar centenas de produtos com este método, entre em contato com a NortaoX.com
 		para fazer o cadastro inicial dos produtos no ambiente de produção diretamente no servidor
@@ -268,7 +268,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 <div class="ready-accordion">
   <span class="ready-accordion-header"><h3><u>Consultar Produto</u></h3></span>
   <ul>
-	<li>Existem 3 formas para a sua aplicação consultar um produto no Website da NortaoX.com. São elas:
+	<li>Existem 3 formas para a sua aplicação consultar um produto no sistema e-Commerce da NortaoX.com. São elas:
 	  <ul>
 		<li><code>php C:\nxwscliente\cli.php consultar produto product_id VALOR_DO_PRODUCT_ID</code> ou <br />
 		  <code>php C:\nxwscliente\cli.php consultar produto sku VALOR_DO_SKU</code> ou <br />
@@ -293,6 +293,20 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 	<li>Em seguinda a sua aplicação deverá ler o arquivo <code>C:\nxwscliente\dados\consulta\pedido_no_NUMERO_DO_PEDIDO.txt</code></li>
 	<li>Caso a consulta falhe, o evento será então registrado em <code>C:\nxwscliente\tmp\logs\AAA-MM-DD.log</code></li>
   </ul>
+</div>
+
+<div class="ready-accordion">
+  <span class="ready-accordion-header"><h3><u>Bugs e Informações</u></h3></span>
+	<ul>
+		<li>Caso encontre algum bug no Módulo <code>NortaoX Webservice Cliente</code>, por favor
+			<a href="https://github.com/drupalista-br/nx_wsclient/issues">abra um issue</a> no repositório do
+			GitHub.
+		</li>
+		<li>Caso tenha alguma dúvida sobre o funcionamento do Módulo <code>NortaoX Webservice Cliente</code> ou outras
+			questões administrativas, por favor abra um chamado na
+			<a href="http://loja.nortaox.com">Central de Atendimento</a> da NortaoX.com
+		</li>
+	</ul>
 </div>
 <br />
 <br />
