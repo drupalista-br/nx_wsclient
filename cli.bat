@@ -1,1 +1,1 @@
-php cli.php %*
+php %~dp0\cli.php %*

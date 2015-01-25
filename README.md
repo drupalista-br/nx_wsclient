@@ -1,3 +1,7 @@
+<?php
+
+?>
+
 A NortaoX.com disponibiliza um módulo para intermediar a sincronização de dados entre a aplicação ERP do Lojista
 e o sistema e-Commerce da NortaoX.com.<br /><br />
 Este módulo é multi-plataforma, ou seja, roda tanto em sistemas UNIX-like como Windows. Este manual irá focar
@@ -168,7 +172,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		O exemplo acima irá atualizar a quantidade em estoque dos produtos sob os códigos 520 e 521.
 	</li>
 	<br />
-	<li>Um produto poderá ser identificado de 3 formas. São elas:
+	<li>Um produto poderá ser identificado por meio de 3 campos. São eles:
 	  <ul>
 		<li><code>product_id</code> refere-se ao código de identificação do produto no sistema da NortaoX.com<br />
 		Caso este campo exista no arquivo de dados, os demais campos de identificação ( sku e cod_produto_erp )
@@ -182,7 +186,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		os campos <code>product_id</code> e <code>sku</code> não existam no arquivo de dados</li>
 	  </ul>
 	</li>
-	<li>Os arquivos de dados contendo as atualizações de dados também deverão ser salvos em
+	<li>Os arquivos contendo as atualizações de dados de produtos também deverão ser salvos em
 		<code>C:\nxwscliente\dados\produto</code>
 	</li>
   </ul>

@@ -35,6 +35,15 @@ class tools {
     $blue = "\033[1;36m";
     $green = "\033[1;32m";
     $red = "\033[1;31m";
+    $os =  php_uname('s');
+    
+    if (strpos($os, 'Windows') !== false) {
+      $white = "";
+      $yellow = "[Aviso] ";
+      $blue = "";
+      $green = "[Ok] ";
+      $red = "[Erro] ";
+    }
 
     // $msg[0] is the message to print.
     // $msg[1] are the placeholders array.
