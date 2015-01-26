@@ -100,8 +100,8 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 <div class="ready-accordion">
   <span class="ready-accordion-header"><h3><u>Cadastrar Produtos</u></h3></span>
 	<ul>
-	  <li>A sua aplicação deverá criar um arquivo texto contendo os dados do(s) produto(s) a serem
-		  cadastrados no sistema e-Commerce da NortaoX.com.
+	  <li>A sua aplicação ERP deverá criar um arquivo texto contendo os dados do(s) produto(s) a serem
+		  cadastrados no sistema e-Commerce da NortaoX.com
 	  </li>
 	  <li>O conteúdo do arquivo texto deverá ter estrutura de <a href="http://pt.wikipedia.org/wiki/INI_(formato_de_arquivo)">
 		arquivo INI</a>. Por exemplo:<br />
@@ -124,7 +124,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 			em vermelho e riscado ao meio. Assim como <code>preco</code>, o valor deste campo, quando informado,
 			também deverá  ser em centavos
 		  </li>
-		  <li><code>qtde_em_estoque</code> é obrigatório, deverá informar quantas unidades do produto há em estoque.</li>
+		  <li><code>qtde_em_estoque</code> é obrigatório, deverá informar quantas unidades do produto há em estoque</li>
 		  <li><code>cod_cidade</code> deverá conter o código da cidade onde o produto está localizado
 			  fisicamente. Para ter acesso a uma lista atualizada de cidades e seus respectivos códigos,
 			  abra o terminal <code>cmd.exe</code> e execute:
@@ -136,11 +136,11 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		  <li><code>cod_produto_erp</code> é opcional, entretanto altamente recomendado que seu valor seja
 			  enviado, refere-se ao código de identificação do produto na sua aplicação ERP</li>
 		  <li><code>localizacao_fisica</code> é opcional, refere-se ao endereço de localização do produto
-			  no estoque do Lojista.</li>
+			  no estoque do Lojista</li>
 		</ul>
 	  </li>
 	  <br />
-	  <li>A sua aplicação deverá salvar os arquivos contendo os dados dos produtos em
+	  <li>A sua aplicação ERP deverá salvar os arquivos contendo os dados dos produtos em
 		<code>C:\nxwscliente\dados\produto</code>. O nome e a extensão dos arquivos são irrelevantes, fica ao
 		seu critério convencionar os nomes. Recomenda-se, no entanto, que faça uso da extensão .txt
 	  </li>
@@ -149,7 +149,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		  <code>cd C:\nxwscliente</code><br />
 		  <code>cli config pastas dados "C:\minha pasta\dados"</code> e <br />
 		  <code>cli testar</code><br />
-		  De agora em diante a sua aplicação deverá salvar os arquivos de dados em
+		  De agora em diante a sua aplicação ERP deverá salvar os arquivos de dados em
 		  <code>C:\minha pasta\dados\produto</code>
 	  </li>
 	</ul>
@@ -158,7 +158,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 <div class="ready-accordion">
   <span class="ready-accordion-header"><h3><u>Atualizar Produtos</u></h3></span>
   <ul>
-	<li>Assim como no cadastro de produtos, a sua aplicação deverá criar um arquivo texto estruturado no formato
+	<li>Assim como no cadastro de produtos, a sua aplicação ERP deverá criar um arquivo texto estruturado no formato
 		de <a href="http://pt.wikipedia.org/wiki/INI_(formato_de_arquivo)">arquivo INI</a> contendo os dados
 		dos campos a serem atualizados
 	</li>
@@ -268,13 +268,13 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 <div class="ready-accordion">
   <span class="ready-accordion-header"><h3><u>Consultar Produto</u></h3></span>
   <ul>
-	<li>Existem 3 formas para a sua aplicação consultar um produto no sistema e-Commerce da NortaoX.com. São elas:
+	<li>Existem 3 formas para a sua aplicação ERP consultar um produto no sistema e-Commerce da NortaoX.com. São elas:
 	  <ul>
 		<li><code>php C:\nxwscliente\cli.php consultar produto product_id VALOR_DO_PRODUCT_ID</code> ou <br />
 		  <code>php C:\nxwscliente\cli.php consultar produto sku VALOR_DO_SKU</code> ou <br />
 		  <code>php C:\nxwscliente\cli.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP</code>
 		</li>
-		<li>Em seguinda a sua aplicação deverá ler o arquivo<br />
+		<li>Em seguinda a sua aplicação ERP deverá ler o arquivo<br />
 		  <code>C:\nxwscliente\dados\consulta\produto_product_id_VALOR_DO_PRODUCT_ID.txt</code> ou <br />
 		  <code>C:\nxwscliente\dados\consulta\produto_sku_VALOR_DO_SKU.txt</code> ou <br />
 		  <code>C:\nxwscliente\dados\consulta\produto_cod_produto_erp_VALOR_DO_COD_PRODUTO_ERP.txt</code>
@@ -287,10 +287,10 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 <div class="ready-accordion">
   <span class="ready-accordion-header"><h3><u>Consultar Pedido</u></h3></span>
   <ul>
-	<li>Para consultar um pedito, a sua aplicação deverá executar
+	<li>Para consultar um pedito, a sua aplicação ERP deverá executar
 		<code>php C:\nxwscliente\cli.php pedido no NUMERO_DO_PEDIDO</code>
 	</li>
-	<li>Em seguinda a sua aplicação deverá ler o arquivo <code>C:\nxwscliente\dados\consulta\pedido_no_NUMERO_DO_PEDIDO.txt</code></li>
+	<li>Em seguinda a sua aplicação ERP deverá ler o arquivo <code>C:\nxwscliente\dados\consulta\pedido_no_NUMERO_DO_PEDIDO.txt</code></li>
 	<li>Caso a consulta falhe, o evento será então registrado em <code>C:\nxwscliente\tmp\logs\AAA-MM-DD.log</code></li>
   </ul>
 </div>
