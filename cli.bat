@@ -1,1 +1,2 @@
-php %~dp0\cli.php %*
+@echo off
+php %~dp0cli.php %*

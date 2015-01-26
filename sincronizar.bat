@@ -1,1 +1,2 @@
-php cli.php sincronizar
+@echo off
+php %~dp0cli.php sincronizar

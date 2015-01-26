@@ -122,7 +122,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		  </li>
 		  <li><code>preco_velho</code> é opcional e será apresentado ao visitante do website da NortaoX.com
 			em vermelho e riscado ao meio. Assim como <code>preco</code>, o valor deste campo, quando informado,
-			também deverá  ser em centavos.
+			também deverá  ser em centavos
 		  </li>
 		  <li><code>qtde_em_estoque</code> é obrigatório, deverá informar quantas unidades do produto há em estoque.</li>
 		  <li><code>cod_cidade</code> deverá conter o código da cidade onde o produto está localizado
@@ -134,7 +134,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 			  </ul>
 		  </li>
 		  <li><code>cod_produto_erp</code> é opcional, entretanto altamente recomendado que seu valor seja
-			  enviado, refere-se ao código de identificação do produto na sua aplicação.</li>
+			  enviado, refere-se ao código de identificação do produto na sua aplicação ERP</li>
 		  <li><code>localizacao_fisica</code> é opcional, refere-se ao endereço de localização do produto
 			  no estoque do Lojista.</li>
 		</ul>
