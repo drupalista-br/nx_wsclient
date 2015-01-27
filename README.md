@@ -4,7 +4,8 @@
 
 A NortaoX.com disponibiliza um módulo para intermediar a sincronização de dados entre a aplicação ERP do Lojista
 e o sistema e-Commerce da NortaoX.com.<br /><br />
-Este módulo é multi-plataforma, ou seja, roda tanto em sistemas UNIX-like como Windows. Este manual irá focar
+Este módulo é multi-plataforma, ou seja, roda tanto em sistemas
+<a href="http://pt.wikipedia.org/wiki/Sistema_operacional_tipo_Unix">UNIX-like</a> como Windows. Este manual irá focar
 nos aspectos pertinentes ao Sistema Operacional Windows.
 
 <div class="ready-accordion">
