@@ -11,7 +11,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 <div class="ready-accordion">
   <span class="ready-accordion-header"><h3><u>Usuário Lojista para Testes</u></h3></span>
   <ul>
-	<li>Acesse <a href="http://loja.nortaoxsandbox.tk">loja.nortaoxsandbox.tk</a></li>
+	<li>Acesse <a href="http://lojas.nortaoxsandbox.tk">lojas.nortaoxsandbox.tk</a></li>
 	<li>Clique em <code>Minha Conta</code> e selecione um Provedor de Autenticação</li>
 	<li>Após fazer o login no Provedor de Autenticação, você deverá informar um <code>usuário</code>, <code>senha</code>
 	e selecionar o Papel <code>lojista</code>. Anote o usuário e senha pois precisará desses dados no
@@ -65,13 +65,13 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 			<li><code>cli</code> para listar todos os comandos disponíveis</li>
 			<li>Informe o ambiente de trabalho:<br />
 				<code>cli ambiente sandbox</code> para comunicar-se com o ambiente de testes em
-				<a href="http://loja.nortaoxsandbox.tk">loja.nortaoxsandbox.tk</a><br />
+				<a href="http://lojas.nortaoxsandbox.tk">lojas.nortaoxsandbox.tk</a><br />
 				<code>cli ambiente producao</code> para comunicar-se com o ambiente de produção em
-				<a href="http://loja.nortaox.com">loja.nortaox.com</a>
+				<a href="http://lojas.nortaox.com">lojas.nortaox.com</a>
 			</li>
 			<li>Informe o usuário e a senha do Lojista que você cadastrou no ambiente de testes em
-				<a href="http://loja.nortaoxsandbox.tk">loja.nortaoxsandbox.tk</a> ou o usuário e a senha do
-				ambiente de produção em <a href="http://loja.nortaox.com">loja.nortaox.com</a>:<br />
+				<a href="http://lojas.nortaoxsandbox.tk">lojas.nortaoxsandbox.tk</a> ou o usuário e a senha do
+				ambiente de produção em <a href="http://lojas.nortaox.com">lojas.nortaox.com</a>:<br />
 				<code>cli config credenciais username "MEU USUARIO"</code><br />
 				<code>cli config credenciais password MINHASENHA</code></li>
 			<li>Informe o usuário e a senha do servidor SMTP:<br />
@@ -305,7 +305,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		</li>
 		<li>Caso tenha alguma dúvida sobre o funcionamento do Módulo <code>NortaoX Webservice Cliente</code> ou outras
 			questões administrativas, por favor abra um chamado na
-			<a href="http://loja.nortaox.com">Central de Atendimento</a> da NortaoX.com
+			<a href="http://lojas.nortaox.com">Central de Atendimento</a> da NortaoX.com
 		</li>
 	</ul>
 </div>
