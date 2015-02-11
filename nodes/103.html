@@ -1,29 +1,30 @@
 <?php
-/*
+$merchant_link_to_form_path_alias = drupal_get_path_alias('node/102');
+//$merchant_link_to_form_href = '/formulario/proposta-de-lojista-para-parceria-comercial';
+$merchant_link_to_form_text = media_filter('[[{
+  "type":"media",
+  "view_mode":"media_large",
+  "fid":"311",
+  "attributes":{
+	"alt":"",
+	"class":"media-image",
+	"height":"191",
+	"style":"width: 480px; height: 191px; float: right;",
+	"typeof":"foaf:Image",
+	"width":"480"
+  }}]]');
 
-<?php
-module_load_include('php', 'nortaox', 'page_contents/node_parceria-comercial_lojista');
-?>
-
-$path = drupal_get_path('module', 'nortaox');
-$path .= '/page_contents/node_parceria-comercial_lojista.php';
-$html = file_get_contents($path);
-
-print media_filter($html);*/
-
-$merchant_link_to_form_href = '/formulario/proposta-de-lojista-para-parceria-comercial';
-$merchant_link_to_form_text = media_filter('[[{"type":"media","view_mode":"media_large","fid":"311","attributes":{"alt":"","class":"media-image","height":"191","style":"width: 480px; height: 191px; float: right;","typeof":"foaf:Image","width":"480"}}]]');
 $merchant_link_to_form_class = '';
 
 if (!user_is_logged_in()) {
-  $merchant_link_to_form_href = '#block-hybridauth-hybridauth';
+  $merchant_link_to_form_path_alias = '#block-hybridauth-hybridauth';
   $merchant_link_to_form_class = "class='fancybox'";
 }
 
-$merchant_link_to_form_text_link = "<a $merchant_link_to_form_class href=$merchant_link_to_form_href>Clique aqui</a>";
+$merchant_link_to_form_text_link = "<a $merchant_link_to_form_class href=$merchant_link_to_form_path_alias>Clique aqui</a>";
 
-// Become a merchang image link at the top of the page.
-print "<a $merchant_link_to_form_class href=$merchant_link_to_form_href>$merchant_link_to_form_text</a>";;
+// "Become a merchant" image link at the top of the page.
+print "<a $merchant_link_to_form_class href=$merchant_link_to_form_path_alias>$merchant_link_to_form_text</a>";
 
 ?>
 
