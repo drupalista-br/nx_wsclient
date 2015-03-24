@@ -27,12 +27,16 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		<li>Instale o <a href="http://www.microsoft.com/en-au/download/details.aspx?id=30679">
 			Visual C++ Redistributable for Visual Studio 2012</a>. Faça o download do arquivo:
 			<ul>
-			  <li><code>VSU_4\vcredist_x64.exe</code> caso o seu sistema seja de 64 bits ou</li>
-			  <li><code>VSU_4\vcredist_x86.exe</code> caso o seu sistema seja de 32 bits</li>
+			  <li><code>VSU_4\vcredist_x64.exe</code> caso o seu sistema operacional seja de 64 bits ou</li>
+			  <li><code>VSU_4\vcredist_x86.exe</code> caso o seu sistema operacional seja de 32 bits</li>
 			</ul>
 		</li>
-		<li><a href="http://windows.php.net/downloads/releases/php-5.5.21-nts-Win32-VC11-x86.zip">Clique aqui</a> para
-			baixar o interpretador da linguagem PHP e descompacte o arquivo ZIP para a pasta <code>C:\php5</code>
+		<li><a href="http://windows.php.net/download">Clique aqui</a> para acessar a página de downloads do
+                    interpretador PHP. Em seguida:
+                    <ul>
+                        <li>Selecione o release mais recente da versão 5.5 Non Thread Safe;</li>
+                        <li>Descompacte o arquivo ZIP baixado para a pasta <code>C:\php5</code></li>
+                    </ul>
 		</li>
 		<li>Baixe o arquivo <a href="https://github.com/drupalista-br/nx_wsclient/raw/master/php.ini">
 			php.ini</a> ( clique o botão direito e selecione Salvar Link Como ) e salve em <code>C:\php5\php.ini</code>
@@ -164,7 +168,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		dos campos a serem atualizados
 	</li>
 	<li>O arquivo de dados deverá conter no mínimo 2 campos. Um campo para identificar o produto e os demais
-		conterão valores a serem atualizados no sistema da NortaoX.com. Por exemplo: <br />
+		conterão valores a serem atualizados no sistema do NortaoX.com. Por exemplo: <br />
 		Nome do arquivo: <code>prod_520.txt</code><br />
 		<script src="https://gist.github.com/drupalista-br/6a217eddd7ebb6608d0d.js"></script>
 		O exemplo acima irá atualizar a quantidade em estoque do produto sob o código 520.<br /><br />
@@ -175,13 +179,13 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 	<br />
 	<li>Um produto poderá ser identificado por meio de 3 campos. São eles:
 	  <ul>
-		<li><code>product_id</code> refere-se ao código de identificação do produto no sistema da NortaoX.com<br />
+		<li><code>product_id</code> refere-se ao código de identificação do produto no sistema do NortaoX.com<br />
 		Caso este campo exista no arquivo de dados, os demais campos de identificação ( sku e cod_produto_erp )
-		serão ignorados. Mais detalhes sobre o este campo no passo <code>Sincronização de Dados</code>
+		serão ignorados. Mais detalhes sobre este campo no passo <code>Sincronização de Dados</code>
 		</li>
 		<li><code><a href="http://pt.wikipedia.org/wiki/Stock_Keeping_Unit">sku</a></code> será o segundo campo
 		de identificação do produto a ser buscado caso <code>product_id</code> não exista no arquivo de dados.
-		Mais detalhes sobre o este campo no passo <code>Sincronização de Dados</code>
+		Mais detalhes sobre este campo no passo <code>Sincronização de Dados</code>
 		</li>
 		<li><code>cod_produto_erp</code> será o terceiro campo de identificação do produto  a ser buscado caso
 		os campos <code>product_id</code> e <code>sku</code> não existam no arquivo de dados</li>
@@ -194,7 +198,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 
 </div>
 <div class="ready-accordion">
-  <span class="ready-accordion-header"><h3><u>Sincronização de Dados</u></h3></span>
+  <span class="ready-accordion-header"><h3><u>Sincronização de Dados | ERP para NortaoX.com</u></h3></span>
   <ul>
 	<li>Abra o <a href="http://windows.microsoft.com/pt-br/windows/schedule-task">Agendador de Tarefas</a>
 	  do Windows e crie uma nova tarefa com as seguintes características:
@@ -207,7 +211,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 	  <ul>
 		<li>Ler todos os arquivos presentes em <code>C:\nxwscliente\dados\produto</code> e:
 		  <ul>
-			<li>Cadastrará ou atualizará produtos no sistema da NortaoX.com via Webservice</li>
+			<li>Cadastrará ou atualizará produtos no sistema do NortaoX.com via Webservice</li>
 			<li>Moverá cada arquivo de dados para:
 			  <ul>
 				<li><code>C:\nxwscliente\tmp\sucessos\produto</code> quando a ação for bem sucedida</li>
@@ -251,7 +255,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 	  </ul>
 	  Cada tentativa de sincronizão que NÃO for executada será registrada em um arquivo de log localizado em
 	  <code>C:\nxwscliente\tmp\logs\AAA-MM-DD.log</code><br />
-	  As tentativas que NÃO forem executdas sob estas circunstâncias não contarão como falhas. Só será contado
+	  As tentativas que forem executdas sob estas circunstâncias NÃO contarão como falhas. Só será contado
 	  como falha quando ouver uma comunicação efetiva com o Webservice e esta por sua vez falhar.
 	</li>
 	<li>Para executar a sincronização manualmente, abra <code>cmd.exe</code> e execute os seguintes comandos:<br />
@@ -267,35 +271,48 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
   </ul>
 </div>
 <div class="ready-accordion">
-  <span class="ready-accordion-header"><h3><u>Consultar Produto</u></h3></span>
-  <ul>
-	<li>Existem 3 formas para a sua aplicação ERP consultar um produto no sistema e-Commerce da NortaoX.com. São elas:
-	  <ul>
-		<li><code>php C:\nxwscliente\cli.php consultar produto product_id VALOR_DO_PRODUCT_ID</code> ou <br />
-		  <code>php C:\nxwscliente\cli.php consultar produto sku VALOR_DO_SKU</code> ou <br />
-		  <code>php C:\nxwscliente\cli.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP</code>
+  <span class="ready-accordion-header"><h3><u>Consultas | NortaoX.com para ERP</u></h3></span>
+	<ul>
+		<li><strong>Consultar Produtos:</strong>
+			<ul>
+				<li>Existem 3 formas para a sua aplicação ERP idenfificar qual produto irá consultar no sistema e-Commerce
+				da NortaoX.com. São elas:
+					<ul>
+					<li><code>php C:\nxwscliente\cli.php consultar produto product_id VALOR_DO_PRODUCT_ID</code> ou <br />
+						<code>php C:\nxwscliente\cli.php consultar produto sku VALOR_DO_SKU</code> ou <br />
+						<code>php C:\nxwscliente\cli.php consultar produto cod_produto_erp VALOR_DO_COD_PRODUTO_ERP</code>
+					</li>
+					<li>Em seguinda a sua aplicação ERP deverá ler o arquivo<br />
+						<code>C:\nxwscliente\dados\consulta\produto_product_id_VALOR_DO_PRODUCT_ID.txt</code> ou <br />
+						<code>C:\nxwscliente\dados\consulta\produto_sku_VALOR_DO_SKU.txt</code> ou <br />
+						<code>C:\nxwscliente\dados\consulta\produto_cod_produto_erp_VALOR_DO_COD_PRODUTO_ERP.txt</code>,
+						o qual conterá a resposta da consulta.
+					</li>
+					</ul>
+				</li>
+			</ul>
 		</li>
-		<li>Em seguinda a sua aplicação ERP deverá ler o arquivo<br />
-		  <code>C:\nxwscliente\dados\consulta\produto_product_id_VALOR_DO_PRODUCT_ID.txt</code> ou <br />
-		  <code>C:\nxwscliente\dados\consulta\produto_sku_VALOR_DO_SKU.txt</code> ou <br />
-		  <code>C:\nxwscliente\dados\consulta\produto_cod_produto_erp_VALOR_DO_COD_PRODUTO_ERP.txt</code>
+		<br />
+		<li><strong>Consultar Pedidos:</strong>
+			<ul>
+				<li>Para consultar um pedito, a sua aplicação ERP deverá executar
+					<code>php C:\nxwscliente\cli.php pedido no NUMERO_DO_PEDIDO</code>
+				</li>
+				<li>Em seguinda a sua aplicação ERP deverá ler o arquivo <code>C:\nxwscliente\dados\consulta\pedido_no_NUMERO_DO_PEDIDO.txt</code>,
+						o qual conterá a resposta da consulta.
+				</li>
+			</ul>
 		</li>
-	  </ul>
-	</li>
-	<li>Caso a consulta falhe, o evento será então registrado em <code>C:\nxwscliente\tmp\logs\AAA-MM-DD.log</code></li>
-  </ul>
-</div>
-<div class="ready-accordion">
-  <span class="ready-accordion-header"><h3><u>Consultar Pedido</u></h3></span>
-  <ul>
-	<li>Para consultar um pedito, a sua aplicação ERP deverá executar
-		<code>php C:\nxwscliente\cli.php pedido no NUMERO_DO_PEDIDO</code>
-	</li>
-	<li>Em seguinda a sua aplicação ERP deverá ler o arquivo <code>C:\nxwscliente\dados\consulta\pedido_no_NUMERO_DO_PEDIDO.txt</code></li>
-	<li>Caso a consulta falhe, o evento será então registrado em <code>C:\nxwscliente\tmp\logs\AAA-MM-DD.log</code></li>
-  </ul>
-</div>
+		<br />
+		<li>O arquivo resposta salvo na pasta <code>..\dados\consulta</code>conterá o campo <code>http_code</code>	e,
+				quando a consultar for bem sucedida, armazenará	o valor 200. <a href="http://pt.wikipedia.org/wiki/Lista_de_c%C3%B3digos_de_status_HTTP">Clique aqui</a>
+				para ver lista completa de códigos de status de requisições HTTP.<br /><br />
 
+				Quando a requisição não for bem sucedida, ou seja, o valor de <code>http_code</code> for diferente de 200,
+				o evento será também registrado em <code>C:\nxwscliente\tmp\logs\AAA-MM-DD.log</code>
+		</li>
+	</ul>
+</div>
 <div class="ready-accordion">
   <span class="ready-accordion-header"><h3><u>Bugs e Informações</u></h3></span>
 	<ul>
