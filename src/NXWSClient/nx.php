@@ -1016,7 +1016,7 @@ class nx {
 	$qs = array('no' => $order_number);
 	$request = $this->retrieve_service_item($qs, 'pedido', '');
 
-	if ($request && $save_result) {
+	if ($save_result) {
 	  $this->save_retrieved_result("pedido_no_$order_number");
 	}
 	return $request;
@@ -1039,7 +1039,7 @@ class nx {
 	$qs = array('product_id' => $product_id);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request && $save_result) {
+	if ($save_result) {
 	  $this->save_retrieved_result("produto_product_id_$product_id");
 	}
 	return $request;
@@ -1062,7 +1062,7 @@ class nx {
 	$qs = array('sku' => $sku);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request && $save_result) {
+	if ($save_result) {
 	  $this->save_retrieved_result("produto_sku_$sku");
 	}
 	return $request;
@@ -1085,7 +1085,7 @@ class nx {
 	$qs = array('cod_produto_erp' => $cod_produto_erp);
 	$request = $this->retrieve_service_item($qs);
 
-	if ($request && $save_result) {
+	if ($save_result) {
 	  $this->save_retrieved_result("produto_cod_produto_erp_$cod_produto_erp");
 	}
 	return $request;
@@ -1096,10 +1096,7 @@ class nx {
    */
   public function get_cities() {
 	$request = $this->request('cidades', '', 'get');
-
-	if ($request) {
-	  $this->save_retrieved_result('cidades');
-	}
+	$this->save_retrieved_result('cidades');
   }
 
   /**
@@ -1112,6 +1109,7 @@ class nx {
 	$file_full_path = $this->folders['dados'] . "/consulta/$file_name.$file_extension";
 
 	$item = json_decode($this->response_body_json, true);
+	$item['http_code'] = $this->response_code;
 
 	try {
 	  $writer = $this->container['ini_writer'];
