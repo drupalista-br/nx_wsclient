@@ -194,10 +194,10 @@ class nx {
 	});
 	
     $container['internet_connection_google'] = 'www.google.com';
-	$container['internet_connection_nortaox'] = 'loja.nortaox.com';
+	$container['internet_connection_nortaox'] = 'lojas.nortaox.com';
 
-	$container['config_producao_uri'] = 'http://loja.nortaox.com/api';
-	$container['config_sandbox_uri'] = 'http://loja.nortaoxsandbox.tk/api';
+	$container['config_producao_uri'] = 'http://lojas.nortaox.com/api';
+	$container['config_sandbox_uri'] = 'http://lojas.nortaoxsandbox.tk/api';
 	$container['config_file_location'] = $this->root_folder . "/config.ini";
 	$container['config'] = function($c) {
 	  return $this->set_config($c);;
