@@ -24,23 +24,17 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
   <ul>
 	<li><h4>PHP</h4>
 	  <ul>
-		<li>Instale o <a href="http://www.microsoft.com/en-au/download/details.aspx?id=30679">
-			Visual C++ Redistributable for Visual Studio 2012</a>. Faça o download do arquivo:
+		<li>Instale o <code>Visual C++ Visual Studio 2012</code>. Escolha entre:
 			<ul>
-			  <li><code>VSU_4\vcredist_x64.exe</code> caso o seu sistema operacional seja de 64 bits ou</li>
-			  <li><code>VSU_4\vcredist_x86.exe</code> caso o seu sistema operacional seja de 32 bits</li>
+			  <li><a href="https://github.com/drupalista-br/nx_wsclient/raw/php-win/vs_2012/vs_2012-32.exe">
+              vs_2012-32.exe</a> caso o seu Windows seja de 32 bits ou</li>
+			  <li><a href="https://github.com/drupalista-br/nx_wsclient/raw/php-win/vs_2012/vs_2012-64.exe">
+              vs_2012-64.exe</a> caso o seu Windows seja de 64 bits</li>
 			</ul>
 		</li>
-		<li><a href="http://windows.php.net/download">Clique aqui</a> para acessar a página de downloads do
-                    interpretador PHP. Em seguida:
-                    <ul>
-                        <li>Selecione o release mais recente da versão 5.5 Non Thread Safe;</li>
-                        <li>Descompacte o arquivo ZIP baixado para a pasta <code>C:\php5</code></li>
-                    </ul>
-		</li>
-		<li>Baixe o arquivo <a href="https://github.com/drupalista-br/nx_wsclient/raw/master/php.ini">
-			php.ini</a> ( clique o botão direito e selecione Salvar Link Como ) e salve em <code>C:\php5\php.ini</code>
-		</li>
+		<li><a href="https://github.com/drupalista-br/nx_wsclient/raw/php-win/php5.zip">Clique aqui</a>
+            para fazer o downloads do interpretador PHP.</li>
+        <li>Descompacte o arquivo <code>php5.zip</code> para a pasta <code>C:\php5</code></li>
 		<li>Abra o terminal <code>cmd.exe</code> <strong>( como administrador )</strong> e execute os
 			seguintes comandos:
 			<ul>
