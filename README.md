@@ -68,9 +68,9 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 			<li><code>cd C:\nxwscliente</code></li>
 			<li><code>cli</code> para listar todos os comandos disponíveis</li>
 			<li>Informe o ambiente de trabalho:<br />
-				<code>cli ambiente sandbox</code> para comunicar-se com o ambiente de testes em
+				<code>cli config ambiente sandbox</code> para comunicar-se com o ambiente de testes em
 				<a href="http://lojas.nortaoxsandbox.tk">lojas.nortaoxsandbox.tk</a><br />
-				<code>cli ambiente producao</code> para comunicar-se com o ambiente de produção em
+				<code>cli config ambiente producao</code> para comunicar-se com o ambiente de produção em
 				<a href="http://lojas.nortaox.com">lojas.nortaox.com</a>
 			</li>
 			<li>Informe o usuário e a senha do Lojista que você cadastrou no ambiente de testes em

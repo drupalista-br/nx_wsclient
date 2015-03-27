@@ -208,7 +208,7 @@ class argv {
 			  throw new Exception(tools::print_red("$argument precisa ser um endereço de email válido da gmail."));
 			}
 
-			if (strpos($argument, '@gmail') === FALSE) {
+			if (strpos($argument, '@gmail') === FALSE && $paramenters == 'smtp username') {
 			  throw new Exception(tools::print_red("O $argument é um email válido mas NÃO é um email da gmail."));
 			}
 
