@@ -1,7 +1,0 @@
-nome = product test new product 1
-preco = 10760
-preco_velho = 11000
-qtde_em_estoque = 9999999.99
-cod_cidade = 35
-cod_produto_erp = 520
-localizacao_fisica = prateleira
