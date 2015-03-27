@@ -33,7 +33,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 			</ul>
 		</li>
 		<li><a href="https://github.com/drupalista-br/nx_wsclient/raw/php-win/php5.zip">Clique aqui</a>
-            para fazer o downloads do interpretador PHP.</li>
+            para fazer o download do interpretador PHP.</li>
         <li>Descompacte o arquivo <code>php5.zip</code> para a pasta <code>C:\php5</code></li>
 		<li>Abra o terminal <code>cmd.exe</code> <strong>( como administrador )</strong> e execute os
 			seguintes comandos:

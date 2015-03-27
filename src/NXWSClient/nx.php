@@ -665,7 +665,7 @@ class nx {
   public function scan_dados_folder() {
 	// Go on only if there is internet connection.
 	if ($this->internet_connection === nx::INTERNET_CONNECTION_OK) {
-	  // Will hold the overall reading results of each individual item data.
+	  // Holds the overall reading results of each individual item data.
 	  $result = array();
 
 	  $this->container['scan_folder_path'] = $this->folders['dados'];
