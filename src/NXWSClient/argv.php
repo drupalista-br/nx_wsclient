@@ -128,7 +128,7 @@ class argv {
 	unset($argv[0]);
 	unset($argv[1]);
 	foreach ($argv as $argv_value) {
-	  $argv_value = strtolower(trim($argv_value));
+	  $argv_value = trim($argv_value);
 
 	  if (isset($expected_parameters[$argv_value])) {
 		// $argv_value is a parameter.
@@ -208,7 +208,7 @@ class argv {
 			  throw new Exception(tools::print_red("$argument precisa ser um endereço de email válido da gmail."));
 			}
 
-			if (strpos($argument, '@gmail') === FALSE && $paramenters == 'smtp username') {
+			if ($field_name == 'username' && strpos($argument, '@gmail') === FALSE) {
 			  throw new Exception(tools::print_red("O $argument é um email válido mas NÃO é um email da gmail."));
 			}
 
