@@ -119,6 +119,10 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		  <li><code>preco</code> é obrigatório, deverá conter o preço de venda do produto em centavos. Assim,
 			<code>10760</code> equivale a <code>107,60</code>
 		  </li>
+		  <li><code>ativo</code> é opcional, quando não enviado o valor padrão é <code>1</code>. <br />
+          <code>1</code> Indica que o produto está disponível para venda. <code>0</code> Indica que o produto
+          NÃO está disponível para venda.
+		  </li>
 		  <li><code>preco_velho</code> é opcional e será apresentado ao visitante do website da NortaoX.com
 			em vermelho e riscado ao meio. Assim como <code>preco</code>, o valor deste campo, quando informado,
 			também deverá  ser em centavos
