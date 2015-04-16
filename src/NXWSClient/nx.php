@@ -497,13 +497,21 @@ class nx {
 	  $session_file = $this->folders['tmp'] . "/.session";
   
 	  if (file_exists($session_file) && !$reset) {
-		$session = $this->container['ini_reader']
-		  ->fromFile($session_file);
-  
-		$this->merchant_login['session'] = $session['session'];
-		$this->merchant_login['token'] = $session['token'];
-  
-		tools::print_green("Credenciais para o usuario %username foram carregadas a partir de arquivo de sessao.", array('%username' => $username));
+		if (time() - filemtime($session_file) >= 86400 ) {
+		  // The session file is older than a day.
+		  tools::print_yellow("O arquivo de sessao tem mais de um dia. Uma nova sessao sera requisitada.");
+		  // Renew the token.
+		  $this->bootstrap_merchant_login(TRUE);
+		}
+		else {
+		  $session = $this->container['ini_reader']
+			->fromFile($session_file);
+
+		  $this->merchant_login['session'] = $session['session'];
+		  $this->merchant_login['token'] = $session['token'];
+
+		  tools::print_green("Credenciais para o usuario %username foram carregadas a partir de arquivo de sessao.", array('%username' => $username));
+		}
 	  }
 	  else {
 		// Request merchant authentication.
