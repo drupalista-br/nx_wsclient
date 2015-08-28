@@ -136,10 +136,9 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 				<li>O comando acima criará o arquivo <code>C:\nxwscliente\dados\consulta\cidades.txt</code></li>
 			  </ul>
 		  </li>
-		  <li><code>cod_produto_erp</code> é opcional, entretanto altamente recomendado que seu valor seja
-			  enviado, refere-se ao código de identificação do produto na sua aplicação ERP</li>
-		  <li><code>localizacao_fisica</code> é opcional, refere-se ao endereço de localização do produto
-			  no estoque do Lojista</li>
+		  <li><code>cod_produto_erp</code> é obrigatório, refere-se ao código de identificação do produto na sua aplicação ERP</li>
+		  <li><code>ean_13</code> é obrigatório, refere-se aos 13 números que compõe a identificação do produto
+      por código de barras ou QR.</li>
 		</ul>
 	  </li>
 	  <br />
