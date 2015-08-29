@@ -111,7 +111,7 @@ nos aspectos pertinentes ao Sistema Operacional Windows.
 		<script src="https://gist.github.com/drupalista-br/2cb37eaf477aa0a76ee3.js"></script>
 		O exemplo acima cadastrará 2 produtos no sistema e-Commerce da NortaoX.com. <br />
 		<strong>ATENÇÃO:</strong>
-		não tente cadastrar centenas de produtos com este método, entre em contato com a NortaoX.com
+		não tente cadastrar milhares de produtos com este método, entre em contato com a NortaoX.com
 		para fazer o cadastro inicial dos produtos no ambiente de produção diretamente no servidor
 		da NortaoX.com.<br /><br />
 		O campo:
