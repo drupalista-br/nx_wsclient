@@ -1,0 +1,6 @@
+test.php
+tmp
+dados
+tests/coverage
+*.tar.gz
+vendor
